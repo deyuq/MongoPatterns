@@ -253,6 +253,61 @@ public async Task<IActionResult> GetPagedProducts(int page = 1, int pageSize = 1
 }
 ```
 
+#### 7. Advanced MongoDB-Native Filtering and Projection
+
+When LINQ expressions don't translate well to MongoDB queries, use the native MongoDB definitions:
+
+```csharp
+public async Task<IActionResult> GetAdvancedFilteredProducts(int page = 1, int pageSize = 10)
+{
+    // Use MongoDB's native filter builders for complex queries
+    var filterBuilder = Builders<Product>.Filter;
+    var filter = filterBuilder.And(
+        filterBuilder.Regex(p => p.Name, new BsonRegularExpression("^i", "i")), // Starts with "i", case insensitive
+        filterBuilder.Or(
+            filterBuilder.Gt(p => p.Price, 100),
+            filterBuilder.In(p => p.Category, new[] { "Electronics", "Gadgets" })
+        ),
+        filterBuilder.Exists(p => p.Tags) // Field must exist
+    );
+    
+    // Use MongoDB's sort builder
+    var sort = Builders<Product>.Sort.Descending(p => p.Price);
+    
+    // Get results with native MongoDB definitions
+    var results = await _productRepository.GetPagedWithDefinitionAsync(filter, sort, page, pageSize);
+    return Ok(results);
+}
+
+public async Task<IActionResult> GetProductsWithProjection()
+{
+    // Use MongoDB's native projection builder to select specific fields
+    var projectionBuilder = Builders<Product>.Projection;
+    var projection = projectionBuilder
+        .Include(p => p.Id)
+        .Include(p => p.Name)
+        .Include(p => p.Price)
+        .Include("metadata.rating") // Access nested document fields
+        .Exclude("_id"); // Exclude MongoDB internal ID
+    
+    // Create a filter
+    var filter = Builders<Product>.Filter.Gt(p => p.Price, 50);
+    
+    // Get projected results
+    var results = await _productRepository.GetWithDefinitionAsync(filter, projection);
+    return Ok(results);
+}
+```
+
+##### Common scenarios where MongoDB-native filters are required:
+
+1. **Text search and regex operations** - For pattern matching, case-insensitive search
+2. **Geospatial queries** - For location-based searches
+3. **Querying nested arrays** - For array element matching with complex conditions
+4. **Field existence checks** - When you need to check if a field exists
+5. **Working with JSON directly** - When your C# model doesn't fully match the MongoDB schema
+6. **Complex logical combinations** - When you need advanced AND/OR/NOR logic
+
 ## Sample Application
 
 A sample minimal API application is included in the `samples/MongoRepository.Sample` directory. It demonstrates how to use the repository with a simple Todo application.

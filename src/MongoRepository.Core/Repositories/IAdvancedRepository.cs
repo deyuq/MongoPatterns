@@ -41,6 +41,37 @@ public interface IAdvancedRepository<TEntity> : IRepository<TEntity> where TEnti
         int pageSize = 10);
 
     /// <summary>
+    /// Gets a filtered and sorted collection of entities with pagination using MongoDB-native filter, sort and projection definitions
+    /// </summary>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="sort">The MongoDB sort definition to apply</param>
+    /// <param name="page">The page number (1-based)</param>
+    /// <param name="pageSize">The page size</param>
+    /// <returns>A paged result containing the entities and pagination metadata</returns>
+    Task<PagedResult<TEntity>> GetPagedWithDefinitionAsync(
+        FilterDefinition<TEntity> filter,
+        SortDefinition<TEntity> sort,
+        int page = 1,
+        int pageSize = 10);
+
+    /// <summary>
+    /// Gets a filtered and sorted collection of entities with pagination and projection using MongoDB-native definitions
+    /// </summary>
+    /// <typeparam name="TProjection">The type to project to</typeparam>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="projection">The MongoDB projection definition to apply</param>
+    /// <param name="sort">The MongoDB sort definition to apply</param>
+    /// <param name="page">The page number (1-based)</param>
+    /// <param name="pageSize">The page size</param>
+    /// <returns>A paged result containing the projected entities and pagination metadata</returns>
+    Task<PagedResult<TProjection>> GetPagedWithDefinitionAsync<TProjection>(
+        FilterDefinition<TEntity> filter,
+        ProjectionDefinition<TEntity, TProjection> projection,
+        SortDefinition<TEntity> sort,
+        int page = 1,
+        int pageSize = 10);
+
+    /// <summary>
     /// Gets entities with a projection to a different type
     /// </summary>
     /// <typeparam name="TProjection">The type to project to</typeparam>
@@ -50,6 +81,39 @@ public interface IAdvancedRepository<TEntity> : IRepository<TEntity> where TEnti
     Task<IEnumerable<TProjection>> GetWithProjectionAsync<TProjection>(
         Expression<Func<TEntity, bool>> filter,
         Expression<Func<TEntity, TProjection>> projection);
+
+    /// <summary>
+    /// Gets entities using MongoDB-native filter definition
+    /// </summary>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <returns>All entities that match the filter</returns>
+    Task<IEnumerable<TEntity>> GetWithDefinitionAsync(FilterDefinition<TEntity> filter);
+
+    /// <summary>
+    /// Gets entities with a projection using MongoDB-native filter and projection definitions
+    /// </summary>
+    /// <typeparam name="TProjection">The type to project to</typeparam>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="projection">The MongoDB projection definition to apply</param>
+    /// <returns>The projected entities</returns>
+    Task<IEnumerable<TProjection>> GetWithDefinitionAsync<TProjection>(
+        FilterDefinition<TEntity> filter,
+        ProjectionDefinition<TEntity, TProjection> projection);
+
+    /// <summary>
+    /// Gets entities with filter, projection and sort using MongoDB-native definitions
+    /// </summary>
+    /// <typeparam name="TProjection">The type to project to</typeparam>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="projection">The MongoDB projection definition to apply</param>
+    /// <param name="sort">The MongoDB sort definition to apply</param>
+    /// <param name="limit">The maximum number of documents to return</param>
+    /// <returns>The projected entities</returns>
+    Task<IEnumerable<TProjection>> GetWithDefinitionAsync<TProjection>(
+        FilterDefinition<TEntity> filter,
+        ProjectionDefinition<TEntity, TProjection> projection,
+        SortDefinition<TEntity> sort,
+        int? limit = null);
 
     /// <summary>
     /// Gets the MongoDB collection used by this repository

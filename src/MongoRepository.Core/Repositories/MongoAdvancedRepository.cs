@@ -108,6 +108,123 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
     }
 
     /// <summary>
+    /// Gets a filtered and sorted collection of entities with pagination using MongoDB-native filter and sort definitions
+    /// </summary>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="sort">The MongoDB sort definition to apply</param>
+    /// <param name="page">The page number (1-based)</param>
+    /// <param name="pageSize">The page size</param>
+    /// <returns>A paged result containing the entities and pagination metadata</returns>
+    public virtual async Task<PagedResult<TEntity>> GetPagedWithDefinitionAsync(
+        FilterDefinition<TEntity> filter,
+        SortDefinition<TEntity> sort,
+        int page = 1,
+        int pageSize = 10)
+    {
+        var skip = (page - 1) * pageSize;
+
+        // Count total items for pagination metadata
+        long totalItems;
+        if (_session != null)
+        {
+            totalItems = await _collection.CountDocumentsAsync(_session, filter);
+        }
+        else
+        {
+            totalItems = await _collection.CountDocumentsAsync(filter);
+        }
+
+        // Get the items for the current page
+        IEnumerable<TEntity> items;
+        if (_session != null)
+        {
+            items = await _collection.Find(_session, filter)
+                .Sort(sort)
+                .Skip(skip)
+                .Limit(pageSize)
+                .ToListAsync();
+        }
+        else
+        {
+            items = await _collection.Find(filter)
+                .Sort(sort)
+                .Skip(skip)
+                .Limit(pageSize)
+                .ToListAsync();
+        }
+
+        // Create and return the paged result
+        return new PagedResult<TEntity>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems
+        };
+    }
+
+    /// <summary>
+    /// Gets a filtered and sorted collection of entities with pagination and projection using MongoDB-native definitions
+    /// </summary>
+    /// <typeparam name="TProjection">The type to project to</typeparam>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="projection">The MongoDB projection definition to apply</param>
+    /// <param name="sort">The MongoDB sort definition to apply</param>
+    /// <param name="page">The page number (1-based)</param>
+    /// <param name="pageSize">The page size</param>
+    /// <returns>A paged result containing the projected entities and pagination metadata</returns>
+    public virtual async Task<PagedResult<TProjection>> GetPagedWithDefinitionAsync<TProjection>(
+        FilterDefinition<TEntity> filter,
+        ProjectionDefinition<TEntity, TProjection> projection,
+        SortDefinition<TEntity> sort,
+        int page = 1,
+        int pageSize = 10)
+    {
+        var skip = (page - 1) * pageSize;
+
+        // Count total items for pagination metadata
+        long totalItems;
+        if (_session != null)
+        {
+            totalItems = await _collection.CountDocumentsAsync(_session, filter);
+        }
+        else
+        {
+            totalItems = await _collection.CountDocumentsAsync(filter);
+        }
+
+        // Get the projected items for the current page
+        IEnumerable<TProjection> items;
+        if (_session != null)
+        {
+            items = await _collection.Find(_session, filter)
+                .Sort(sort)
+                .Skip(skip)
+                .Limit(pageSize)
+                .Project(projection)
+                .ToListAsync();
+        }
+        else
+        {
+            items = await _collection.Find(filter)
+                .Sort(sort)
+                .Skip(skip)
+                .Limit(pageSize)
+                .Project(projection)
+                .ToListAsync();
+        }
+
+        // Create and return the paged result
+        return new PagedResult<TProjection>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems
+        };
+    }
+
+    /// <summary>
     /// Gets entities with a projection to a different type
     /// </summary>
     /// <typeparam name="TProjection">The type to project to</typeparam>
@@ -123,6 +240,65 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
             return await _collection.Find(_session, filter).Project(projection).ToListAsync();
         }
         return await _collection.Find(filter).Project(projection).ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets entities using MongoDB-native filter definition
+    /// </summary>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <returns>All entities that match the filter</returns>
+    public virtual async Task<IEnumerable<TEntity>> GetWithDefinitionAsync(FilterDefinition<TEntity> filter)
+    {
+        if (_session != null)
+        {
+            return await _collection.Find(_session, filter).ToListAsync();
+        }
+        return await _collection.Find(filter).ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets entities with a projection using MongoDB-native filter and projection definitions
+    /// </summary>
+    /// <typeparam name="TProjection">The type to project to</typeparam>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="projection">The MongoDB projection definition to apply</param>
+    /// <returns>The projected entities</returns>
+    public virtual async Task<IEnumerable<TProjection>> GetWithDefinitionAsync<TProjection>(
+        FilterDefinition<TEntity> filter,
+        ProjectionDefinition<TEntity, TProjection> projection)
+    {
+        if (_session != null)
+        {
+            return await _collection.Find(_session, filter).Project(projection).ToListAsync();
+        }
+        return await _collection.Find(filter).Project(projection).ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets entities with filter, projection and sort using MongoDB-native definitions
+    /// </summary>
+    /// <typeparam name="TProjection">The type to project to</typeparam>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="projection">The MongoDB projection definition to apply</param>
+    /// <param name="sort">The MongoDB sort definition to apply</param>
+    /// <param name="limit">The maximum number of documents to return</param>
+    /// <returns>The projected entities</returns>
+    public virtual async Task<IEnumerable<TProjection>> GetWithDefinitionAsync<TProjection>(
+        FilterDefinition<TEntity> filter,
+        ProjectionDefinition<TEntity, TProjection> projection,
+        SortDefinition<TEntity> sort,
+        int? limit = null)
+    {
+        var findFluent = _session != null
+            ? _collection.Find(_session, filter).Sort(sort)
+            : _collection.Find(filter).Sort(sort);
+
+        if (limit.HasValue)
+        {
+            findFluent = findFluent.Limit(limit.Value);
+        }
+
+        return await findFluent.Project(projection).ToListAsync();
     }
 
     /// <summary>

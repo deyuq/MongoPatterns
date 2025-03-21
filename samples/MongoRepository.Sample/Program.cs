@@ -6,6 +6,8 @@ using MongoRepository.Core.Repositories;
 using MongoRepository.Core.UnitOfWork;
 using MongoRepository.Sample.Data;
 using MongoRepository.Sample.Models;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -137,6 +139,76 @@ app.MapGet("/todos/paged", async (
     return Results.Ok(pagedResult);
 })
 .WithName("GetPagedTodos")
+.WithOpenApi();
+
+// Advanced query example - using native MongoDB filter definitions
+app.MapGet("/todos/advanced", async (
+    int page,
+    int pageSize,
+    IAdvancedRepository<TodoItem> repository) =>
+{
+    // Example of using MongoDB filter builder
+    var filterBuilder = Builders<TodoItem>.Filter;
+
+    // Creating complex filters that may not translate well with LINQ expressions
+    var filter = filterBuilder.And(
+        filterBuilder.Regex(t => t.Title, new MongoDB.Bson.BsonRegularExpression("^T", "i")), // Starts with "T", case insensitive
+        filterBuilder.Or(
+            filterBuilder.Eq(t => t.IsCompleted, true),
+            filterBuilder.Gt(t => t.CreatedAt, DateTime.UtcNow.AddDays(-7)) // Created in the last week
+        )
+    );
+
+    // Using MongoDB sort builder
+    var sort = Builders<TodoItem>.Sort.Descending(t => t.CreatedAt);
+
+    // Get paged results with native MongoDB definitions
+    var pagedResult = await repository.GetPagedWithDefinitionAsync(
+        filter,
+        sort,
+        page,
+        pageSize);
+
+    return Results.Ok(pagedResult);
+})
+.WithName("GetAdvancedFilteredTodos")
+.WithOpenApi();
+
+// Advanced query example - using native MongoDB projection
+app.MapGet("/todos/projected", async (
+    IAdvancedRepository<TodoItem> repository) =>
+{
+    // Example of using MongoDB filter and projection builders
+    var filterBuilder = Builders<TodoItem>.Filter;
+    var projectionBuilder = Builders<TodoItem>.Projection;
+
+    // Complex filter
+    var filter = filterBuilder.And(
+        filterBuilder.Exists(t => t.CompletedAt),
+        filterBuilder.Ne(t => t.CompletedAt, null)
+    );
+
+    // Project to a different shape (selecting specific fields)
+    var projection = projectionBuilder
+        .Include(t => t.Id)
+        .Include(t => t.Title)
+        .Include(t => t.IsCompleted)
+        .Include(t => t.CompletedAt)
+        .Exclude("_id"); // This is how you exclude MongoDB's _id field if needed
+
+    // Using MongoDB sort builder
+    var sort = Builders<TodoItem>.Sort.Descending(t => t.CompletedAt!);
+
+    // Get projected results with limit
+    var results = await repository.GetWithDefinitionAsync(
+        filter,
+        projection,
+        sort,
+        limit: 10);
+
+    return Results.Ok(results);
+})
+.WithName("GetProjectedTodos")
 .WithOpenApi();
 
 app.Run();
