@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using MongoDB.Driver;
-using MongoDB.Driver.Linq;
 using MongoRepository.Core.Models;
 using MongoRepository.Core.Settings;
 
@@ -28,7 +27,7 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
     /// <returns>An IQueryable of entities</returns>
     public virtual IQueryable<TEntity> AsQueryable()
     {
-        return _collection.AsQueryable();
+        return Collection.AsQueryable();
     }
 
     /// <summary>
@@ -39,11 +38,11 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
     /// <returns>The result of the update operation</returns>
     public virtual async Task<UpdateResult> BulkUpdateAsync(Expression<Func<TEntity, bool>> filter, UpdateDefinition<TEntity> update)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.UpdateManyAsync(_session, filter, update);
+            return await Collection.UpdateManyAsync(Session, filter, update);
         }
-        return await _collection.UpdateManyAsync(filter, update);
+        return await Collection.UpdateManyAsync(filter, update);
     }
 
     /// <summary>
@@ -69,20 +68,20 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
 
         // Count total items for pagination metadata
         long totalItems;
-        if (_session != null)
+        if (Session != null)
         {
-            totalItems = await _collection.CountDocumentsAsync(_session, filter);
+            totalItems = await Collection.CountDocumentsAsync(Session, filter);
         }
         else
         {
-            totalItems = await _collection.CountDocumentsAsync(filter);
+            totalItems = await Collection.CountDocumentsAsync(filter);
         }
 
         // Get the items for the current page
         IEnumerable<TEntity> items;
-        if (_session != null)
+        if (Session != null)
         {
-            items = await _collection.Find(_session, filter)
+            items = await Collection.Find(Session, filter)
                 .Sort(sort)
                 .Skip(skip)
                 .Limit(pageSize)
@@ -90,7 +89,7 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
         }
         else
         {
-            items = await _collection.Find(filter)
+            items = await Collection.Find(filter)
                 .Sort(sort)
                 .Skip(skip)
                 .Limit(pageSize)
@@ -125,20 +124,20 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
 
         // Count total items for pagination metadata
         long totalItems;
-        if (_session != null)
+        if (Session != null)
         {
-            totalItems = await _collection.CountDocumentsAsync(_session, filter);
+            totalItems = await Collection.CountDocumentsAsync(Session, filter);
         }
         else
         {
-            totalItems = await _collection.CountDocumentsAsync(filter);
+            totalItems = await Collection.CountDocumentsAsync(filter);
         }
 
         // Get the items for the current page
         IEnumerable<TEntity> items;
-        if (_session != null)
+        if (Session != null)
         {
-            items = await _collection.Find(_session, filter)
+            items = await Collection.Find(Session, filter)
                 .Sort(sort)
                 .Skip(skip)
                 .Limit(pageSize)
@@ -146,7 +145,7 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
         }
         else
         {
-            items = await _collection.Find(filter)
+            items = await Collection.Find(filter)
                 .Sort(sort)
                 .Skip(skip)
                 .Limit(pageSize)
@@ -184,20 +183,20 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
 
         // Count total items for pagination metadata
         long totalItems;
-        if (_session != null)
+        if (Session != null)
         {
-            totalItems = await _collection.CountDocumentsAsync(_session, filter);
+            totalItems = await Collection.CountDocumentsAsync(Session, filter);
         }
         else
         {
-            totalItems = await _collection.CountDocumentsAsync(filter);
+            totalItems = await Collection.CountDocumentsAsync(filter);
         }
 
         // Get the projected items for the current page
         IEnumerable<TProjection> items;
-        if (_session != null)
+        if (Session != null)
         {
-            items = await _collection.Find(_session, filter)
+            items = await Collection.Find(Session, filter)
                 .Sort(sort)
                 .Skip(skip)
                 .Limit(pageSize)
@@ -206,7 +205,7 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
         }
         else
         {
-            items = await _collection.Find(filter)
+            items = await Collection.Find(filter)
                 .Sort(sort)
                 .Skip(skip)
                 .Limit(pageSize)
@@ -235,21 +234,21 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
         Expression<Func<TEntity, bool>> filter,
         Expression<Func<TEntity, TProjection>> projection)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.Find(_session, filter).Project(projection).ToListAsync();
+            return await Collection.Find(Session, filter).Project(projection).ToListAsync();
         }
-        return await _collection.Find(filter).Project(projection).ToListAsync();
+        return await Collection.Find(filter).Project(projection).ToListAsync();
     }
 
     /// <inheritdoc/>
     public virtual async Task<IEnumerable<TEntity>> GetWithDefinitionAsync(FilterDefinition<TEntity> filter)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.Find(_session, filter).ToListAsync();
+            return await Collection.Find(Session, filter).ToListAsync();
         }
-        return await _collection.Find(filter).ToListAsync();
+        return await Collection.Find(filter).ToListAsync();
     }
 
     /// <inheritdoc/>
@@ -258,9 +257,9 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
         SortDefinition<TEntity> sort,
         int? limit = null)
     {
-        var findFluent = _session != null
-            ? _collection.Find(_session, filter).Sort(sort)
-            : _collection.Find(filter).Sort(sort);
+        var findFluent = Session != null
+            ? Collection.Find(Session, filter).Sort(sort)
+            : Collection.Find(filter).Sort(sort);
 
         if (limit.HasValue)
         {
@@ -275,11 +274,11 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
         FilterDefinition<TEntity> filter,
         ProjectionDefinition<TEntity, TProjection> projection)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.Find(_session, filter).Project(projection).ToListAsync();
+            return await Collection.Find(Session, filter).Project(projection).ToListAsync();
         }
-        return await _collection.Find(filter).Project(projection).ToListAsync();
+        return await Collection.Find(filter).Project(projection).ToListAsync();
     }
 
     /// <inheritdoc/>
@@ -289,9 +288,9 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
         SortDefinition<TEntity> sort,
         int? limit = null)
     {
-        var findFluent = _session != null
-            ? _collection.Find(_session, filter).Sort(sort)
-            : _collection.Find(filter).Sort(sort);
+        var findFluent = Session != null
+            ? Collection.Find(Session, filter).Sort(sort)
+            : Collection.Find(filter).Sort(sort);
 
         if (limit.HasValue)
         {
@@ -307,6 +306,6 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
     /// <returns>The MongoDB collection</returns>
     public virtual IMongoCollection<TEntity> GetCollection()
     {
-        return _collection;
+        return Collection;
     }
 }

@@ -38,7 +38,7 @@ public class MongoUnitOfWork : IUnitOfWork
     {
         return (IRepository<TEntity>)_repositories.GetOrAdd(
             typeof(TEntity),
-            entityType => new MongoRepository<TEntity>(_settings, _session));
+            _ => new MongoRepository<TEntity>(_settings, _session));
     }
 
     /// <summary>

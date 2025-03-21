@@ -11,8 +11,8 @@ namespace MongoRepository.Core.Repositories;
 /// <typeparam name="TEntity">The type of entity this repository works with</typeparam>
 public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEntity
 {
-    protected readonly IMongoCollection<TEntity> _collection;
-    protected readonly IClientSessionHandle? _session;
+    protected readonly IMongoCollection<TEntity> Collection;
+    protected readonly IClientSessionHandle? Session;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MongoRepository{TEntity}"/> class.
@@ -23,8 +23,8 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     {
         var client = new MongoClient(settings.ConnectionString);
         var database = client.GetDatabase(settings.DatabaseName);
-        _collection = database.GetCollection<TEntity>(typeof(TEntity).Name.ToLower());
-        _session = session;
+        Collection = database.GetCollection<TEntity>(typeof(TEntity).Name.ToLower());
+        Session = session;
     }
 
     /// <summary>
@@ -33,11 +33,11 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     /// <returns>All entities in the collection</returns>
     public virtual async Task<IEnumerable<TEntity>> GetAllAsync()
     {
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.Find(_session, _ => true).ToListAsync();
+            return await Collection.Find(Session, _ => true).ToListAsync();
         }
-        return await _collection.Find(_ => true).ToListAsync();
+        return await Collection.Find(_ => true).ToListAsync();
     }
 
     /// <summary>
@@ -47,11 +47,11 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     /// <returns>All entities that match the filter</returns>
     public virtual async Task<IEnumerable<TEntity>> GetAsync(Expression<Func<TEntity, bool>> filter)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.Find(_session, filter).ToListAsync();
+            return await Collection.Find(Session, filter).ToListAsync();
         }
-        return await _collection.Find(filter).ToListAsync();
+        return await Collection.Find(filter).ToListAsync();
     }
 
     /// <summary>
@@ -63,11 +63,11 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     {
         var filter = Builders<TEntity>.Filter.Eq(e => e.Id, id);
 
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.Find(_session, filter).FirstOrDefaultAsync();
+            return await Collection.Find(Session, filter).FirstOrDefaultAsync();
         }
-        return await _collection.Find(filter).FirstOrDefaultAsync();
+        return await Collection.Find(filter).FirstOrDefaultAsync();
     }
 
     /// <summary>
@@ -77,11 +77,11 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     /// <returns>The first entity that matches the filter, or null if not found</returns>
     public virtual async Task<TEntity> GetFirstAsync(Expression<Func<TEntity, bool>> filter)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.Find(_session, filter).FirstOrDefaultAsync();
+            return await Collection.Find(Session, filter).FirstOrDefaultAsync();
         }
-        return await _collection.Find(filter).FirstOrDefaultAsync();
+        return await Collection.Find(filter).FirstOrDefaultAsync();
     }
 
     /// <summary>
@@ -90,13 +90,13 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     /// <param name="entity">The entity to add</param>
     public virtual async Task AddAsync(TEntity entity)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            await _collection.InsertOneAsync(_session, entity);
+            await Collection.InsertOneAsync(Session, entity);
         }
         else
         {
-            await _collection.InsertOneAsync(entity);
+            await Collection.InsertOneAsync(entity);
         }
     }
 
@@ -106,13 +106,13 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     /// <param name="entities">The entities to add</param>
     public virtual async Task AddRangeAsync(IEnumerable<TEntity> entities)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            await _collection.InsertManyAsync(_session, entities);
+            await Collection.InsertManyAsync(Session, entities);
         }
         else
         {
-            await _collection.InsertManyAsync(entities);
+            await Collection.InsertManyAsync(entities);
         }
     }
 
@@ -124,13 +124,13 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     {
         var filter = Builders<TEntity>.Filter.Eq(e => e.Id, entity.Id);
 
-        if (_session != null)
+        if (Session != null)
         {
-            await _collection.ReplaceOneAsync(_session, filter, entity);
+            await Collection.ReplaceOneAsync(Session, filter, entity);
         }
         else
         {
-            await _collection.ReplaceOneAsync(filter, entity);
+            await Collection.ReplaceOneAsync(filter, entity);
         }
     }
 
@@ -142,13 +142,13 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     {
         var filter = Builders<TEntity>.Filter.Eq(e => e.Id, id);
 
-        if (_session != null)
+        if (Session != null)
         {
-            await _collection.DeleteOneAsync(_session, filter);
+            await Collection.DeleteOneAsync(Session, filter);
         }
         else
         {
-            await _collection.DeleteOneAsync(filter);
+            await Collection.DeleteOneAsync(filter);
         }
     }
 
@@ -158,13 +158,13 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     /// <param name="filter">The filter to apply</param>
     public virtual async Task DeleteManyAsync(Expression<Func<TEntity, bool>> filter)
     {
-        if (_session != null)
+        if (Session != null)
         {
-            await _collection.DeleteManyAsync(_session, filter);
+            await Collection.DeleteManyAsync(Session, filter);
         }
         else
         {
-            await _collection.DeleteManyAsync(filter);
+            await Collection.DeleteManyAsync(filter);
         }
     }
 
@@ -180,11 +180,11 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
             filter = _ => true;
         }
 
-        if (_session != null)
+        if (Session != null)
         {
-            return await _collection.CountDocumentsAsync(_session, filter);
+            return await Collection.CountDocumentsAsync(Session, filter);
         }
-        return await _collection.CountDocumentsAsync(filter);
+        return await Collection.CountDocumentsAsync(filter);
     }
 
     /// <summary>
