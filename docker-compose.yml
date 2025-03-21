@@ -1,24 +1,58 @@
 version: '3.8'
 
 services:
-  mongodb:
+  mongo1:
     image: mongo:latest
-    container_name: mongodb
+    container_name: mongo1
     restart: always
     ports:
       - "27017:27017"
     environment:
       - MONGO_INITDB_DATABASE=TodoDb
     volumes:
-      - mongodb_data:/data/db
+      - mongo1_data:/data/db
+      - ./rs-init.sh:/scripts/rs-init.sh
     networks:
       - mongo-network
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok", "--quiet"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 45s
+      
+  mongo2:
+    image: mongo:latest
+    container_name: mongo2
+    restart: always
+    ports:
+      - "27018:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=TodoDb
+    volumes:
+      - mongo2_data:/data/db
+    networks:
+      - mongo-network
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    depends_on:
+      - mongo1
+    
+  mongo3:
+    image: mongo:latest
+    container_name: mongo3
+    restart: always
+    ports:
+      - "27019:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=TodoDb
+    volumes:
+      - mongo3_data:/data/db
+    networks:
+      - mongo-network
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    depends_on:
+      - mongo1
 
   sample-api:
     build:
@@ -31,12 +65,12 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - MongoDbSettings__ConnectionString=mongodb://mongodb:27017
+      - MongoDbSettings__ConnectionString=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0
       - MongoDbSettings__DatabaseName=TodoDb
       - DOTNET_RUNNING_IN_CONTAINER=true
       - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
     depends_on:
-      mongodb:
+      mongo1:
         condition: service_healthy
     networks:
       - mongo-network
@@ -48,7 +82,9 @@ services:
         window: 120s
 
 volumes:
-  mongodb_data:
+  mongo1_data:
+  mongo2_data:
+  mongo3_data:
 
 networks:
   mongo-network:

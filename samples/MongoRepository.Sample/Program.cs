@@ -38,6 +38,9 @@ builder.Services.AddTransient<TodoSeeder>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Add controllers
+builder.Services.AddControllers();
+
 var app = builder.Build();
 
 // Initialize database with retry logic
@@ -51,6 +54,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Map controllers
+app.MapControllers();
 
 // Define routes for Todo API
 app.MapGet("/todos", async (IAdvancedRepository<TodoItem> repository) =>
