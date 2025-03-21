@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=TodoDb
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - mongo-network
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sample-api:
+    build:
+      context: .
+      dockerfile: samples/MongoRepository.Sample/Dockerfile
+    container_name: sample-api
+    restart: always
+    ports:
+      - "5000:80"
+      - "5001:443"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MongoDbSettings__ConnectionString=mongodb://mongodb:27017
+      - MongoDbSettings__DatabaseName=TodoDb
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - mongo-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  mongo-network:
+    driver: bridge 

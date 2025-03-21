@@ -43,6 +43,30 @@ Configure MongoDB connection in `appsettings.json`:
 }
 ```
 
+## Docker Support
+
+You can run both MongoDB and the sample application using Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+This will start:
+- MongoDB container accessible at `mongodb://localhost:27017`
+- Sample API application accessible at `http://localhost:5000` and `https://localhost:5001`
+
+To stop the containers:
+
+```bash
+docker-compose down
+```
+
+To remove the containers and volumes:
+
+```bash
+docker-compose down -v
+```
+
 ### Usage
 
 #### 1. Define your entity models
