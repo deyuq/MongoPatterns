@@ -1,0 +1,84 @@
+@hostname = localhost
+@port = 8080
+@host = {{hostname}}:{{port}}
+@contentType = application/json
+@todoId = replace_with_actual_id
+
+### Get all todos
+GET http://{{host}}/todos
+Accept: {{contentType}}
+
+### Get a specific todo by ID
+GET http://{{host}}/todos/{{todoId}}
+Accept: {{contentType}}
+
+### Create a new todo
+POST http://{{host}}/todos
+Content-Type: {{contentType}}
+
+{
+  "title": "New Todo Item",
+  "description": "This is a new todo item created via HTTP request",
+  "isCompleted": false
+}
+
+### Update a todo
+PUT http://{{host}}/todos/{{todoId}}
+Content-Type: {{contentType}}
+
+{
+  "title": "Updated Todo Item",
+  "description": "This todo item has been updated via HTTP request",
+  "isCompleted": true,
+  "completedAt": "2023-04-10T12:00:00Z"
+}
+
+### Delete a todo
+DELETE http://{{host}}/todos/{{todoId}}
+
+### Create batch of todos (transaction example)
+POST http://{{host}}/todos/batch
+Content-Type: {{contentType}}
+
+[
+  {
+    "title": "Batch Todo Item 1",
+    "description": "First item in the batch",
+    "isCompleted": false
+  },
+  {
+    "title": "Batch Todo Item 2",
+    "description": "Second item in the batch",
+    "isCompleted": true,
+    "completedAt": "2023-04-15T14:30:00Z"
+  },
+  {
+    "title": "Batch Todo Item 3",
+    "description": "Third item in the batch",
+    "isCompleted": false
+  }
+]
+
+### Get paged todos (page 1, 2 items per page)
+GET http://{{host}}/todos/paged?page=1&pageSize=2
+Accept: {{contentType}}
+
+### Get paged todos (page 2, 2 items per page)
+GET http://{{host}}/todos/paged?page=2&pageSize=2
+Accept: {{contentType}}
+
+### Using HTTPS endpoint examples
+
+### Get all todos (HTTPS)
+GET https://{{hostname}}:8081/todos
+Accept: {{contentType}}
+
+### Create a new todo (HTTPS)
+POST https://{{hostname}}:8081/todos
+Content-Type: {{contentType}}
+
+{
+  "title": "HTTPS Todo Item",
+  "description": "This is a new todo item created via HTTPS request",
+  "isCompleted": false
+} 
