@@ -36,7 +36,14 @@ services:
       - mongo-network
     command: ["--replSet", "rs0", "--bind_ip_all"]
     depends_on:
-      - mongo1
+      mongo1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     
   mongo3:
     image: mongo:latest
@@ -52,7 +59,34 @@ services:
       - mongo-network
     command: ["--replSet", "rs0", "--bind_ip_all"]
     depends_on:
-      - mongo1
+      mongo1:
+        condition: service_healthy
+      mongo2:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # This service is for replica set initialization
+  mongo-init:
+    image: mongo:latest
+    container_name: mongo-init
+    restart: "no"
+    networks:
+      - mongo-network
+    volumes:
+      - ./rs-init.sh:/scripts/rs-init.sh
+    entrypoint: ["/bin/bash", "/scripts/rs-init.sh"]
+    depends_on:
+      mongo1:
+        condition: service_healthy
+      mongo2:
+        condition: service_healthy
+      mongo3:
+        condition: service_healthy
 
   sample-api:
     build:
@@ -65,13 +99,13 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - MongoDbSettings__ConnectionString=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0
+      - MongoDbSettings__ConnectionString=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0&serverSelectionTimeoutMS=60000&connectTimeoutMS=60000&socketTimeoutMS=90000&maxPoolSize=200&waitQueueTimeoutMS=10000&retryWrites=true&retryReads=true
       - MongoDbSettings__DatabaseName=TodoDb
       - DOTNET_RUNNING_IN_CONTAINER=true
       - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
     depends_on:
-      mongo1:
-        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
     networks:
       - mongo-network
     deploy:
@@ -80,6 +114,12 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "apt-get update && apt-get install -y curl && curl -f http://localhost:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   mongo1_data:

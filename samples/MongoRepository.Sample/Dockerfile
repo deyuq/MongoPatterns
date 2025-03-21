@@ -17,5 +17,7 @@ RUN dotnet publish "MongoRepository.Sample.csproj" -c Release -o /app/publish /p
 
 FROM base AS final
 WORKDIR /app
+# Install wget for health checks
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "MongoRepository.Sample.dll"] 

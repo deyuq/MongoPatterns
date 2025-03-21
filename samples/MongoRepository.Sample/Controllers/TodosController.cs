@@ -13,11 +13,11 @@ namespace MongoRepository.Sample.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class TodoController : ControllerBase
+public class TodosController : ControllerBase
 {
-    private readonly ILogger<TodoController> _logger;
+    private readonly ILogger<TodosController> _logger;
 
-    public TodoController(ILogger<TodoController> logger)
+    public TodosController(ILogger<TodosController> logger)
     {
         _logger = logger;
     }
