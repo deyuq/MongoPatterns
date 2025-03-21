@@ -11,7 +11,7 @@ namespace MongoRepository.Core.UnitOfWork;
 /// </summary>
 public class MongoUnitOfWork : IUnitOfWork
 {
-    private readonly IMongoDbSettings _settings;
+    private readonly MongoDbSettings _settings;
     private readonly IMongoClient _client;
     private IClientSessionHandle? _session;
     private readonly ConcurrentDictionary<Type, object> _repositories;
@@ -21,7 +21,7 @@ public class MongoUnitOfWork : IUnitOfWork
     /// Initializes a new instance of the <see cref="MongoUnitOfWork"/> class.
     /// </summary>
     /// <param name="settings">MongoDB settings</param>
-    public MongoUnitOfWork(IMongoDbSettings settings)
+    public MongoUnitOfWork(MongoDbSettings settings)
     {
         _settings = settings;
         _client = new MongoClient(settings.ConnectionString);

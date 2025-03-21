@@ -19,7 +19,7 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     /// </summary>
     /// <param name="settings">MongoDB settings</param>
     /// <param name="session">Optional session for transaction support</param>
-    public MongoRepository(IMongoDbSettings settings, IClientSessionHandle? session = null)
+    public MongoRepository(MongoDbSettings settings, IClientSessionHandle? session = null)
     {
         var client = new MongoClient(settings.ConnectionString);
         var database = client.GetDatabase(settings.DatabaseName);

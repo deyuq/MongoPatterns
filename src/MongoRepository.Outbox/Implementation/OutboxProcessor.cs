@@ -98,10 +98,10 @@ public class OutboxProcessor : BackgroundService
 
         _logger.LogDebug("Getting batch of {BatchSize} pending messages", _settings.BatchSize);
 
-        // Use the correct method signature
-        var pendingMessages = await repository.GetWithDefinitionAsync(filter);
+        // Use the new overload with sort and limit
+        var pendingMessages = await repository.GetWithDefinitionAsync(filter, sort, _settings.BatchSize);
 
-        var messages = pendingMessages.Take(_settings.BatchSize).ToList();
+        var messages = pendingMessages.ToList();
         if (!messages.Any())
         {
             return;

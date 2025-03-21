@@ -90,6 +90,18 @@ public interface IAdvancedRepository<TEntity> : IRepository<TEntity> where TEnti
     Task<IEnumerable<TEntity>> GetWithDefinitionAsync(FilterDefinition<TEntity> filter);
 
     /// <summary>
+    /// Gets entities using MongoDB-native filter and sort definitions with an optional limit
+    /// </summary>
+    /// <param name="filter">The MongoDB filter definition to apply</param>
+    /// <param name="sort">The MongoDB sort definition to apply</param>
+    /// <param name="limit">The maximum number of documents to return</param>
+    /// <returns>All entities that match the filter, sorted according to the sort definition</returns>
+    Task<IEnumerable<TEntity>> GetWithDefinitionAsync(
+        FilterDefinition<TEntity> filter,
+        SortDefinition<TEntity> sort,
+        int? limit = null);
+
+    /// <summary>
     /// Gets entities with a projection using MongoDB-native filter and projection definitions
     /// </summary>
     /// <typeparam name="TProjection">The type to project to</typeparam>

@@ -36,7 +36,7 @@ public static class MongoDbExtensions
         });
 
         // Register MongoDB settings
-        services.AddSingleton<IMongoDbSettings>(new MongoDbSettings
+        services.AddSingleton<MongoDbSettings>(new MongoDbSettings
         {
             ConnectionString = connectionString,
             DatabaseName = databaseName
@@ -46,14 +46,14 @@ public static class MongoDbExtensions
         services.AddScoped<IUnitOfWork, MongoUnitOfWork>();
         services.AddScoped<IRepository<OutboxMessage>>(provider =>
         {
-            var settings = provider.GetRequiredService<IMongoDbSettings>();
+            var settings = provider.GetRequiredService<MongoDbSettings>();
             return new MongoRepository<OutboxMessage>(settings);
         });
 
         // Register advanced repository for OutboxMessage
         services.AddScoped<IAdvancedRepository<OutboxMessage>>(provider =>
         {
-            var settings = provider.GetRequiredService<IMongoDbSettings>();
+            var settings = provider.GetRequiredService<MongoDbSettings>();
             return new MongoAdvancedRepository<OutboxMessage>(settings);
         });
 
