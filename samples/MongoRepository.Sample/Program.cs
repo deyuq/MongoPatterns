@@ -200,7 +200,7 @@ app.MapGet("/todos/projected", async (
     var sort = Builders<TodoItem>.Sort.Descending(t => t.CompletedAt!);
 
     // Get projected results with limit
-    var results = await repository.GetWithDefinitionAsync(
+    var results = await repository.GetWithDefinitionAsync<BsonDocument>(
         filter,
         projection,
         sort,
