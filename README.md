@@ -1,38 +1,45 @@
 # MongoRepository
 
-A generic MongoDB repository pattern implementation for .NET applications with transaction support via UOW pattern.
+A comprehensive and flexible MongoDB repository pattern implementation for .NET projects with transaction support, advanced querying capabilities, and outbox pattern for reliable messaging.
 
 ## Features
 
-- Generic repository pattern implementation
-- Strongly typed entities with ID mapping
-- Transaction support using Unit of Work pattern
-- Advanced querying capabilities
-- Microsoft Dependency Injection integration
-- CRUD operations for MongoDB
-- Pagination support
-- Asynchronous operations
+- **Generic Repository Pattern**: Simplifies data access with strongly-typed repositories
+- **Advanced Querying**: Support for complex MongoDB filter definitions, projections, and aggregations
+- **Transaction Support**: Full MongoDB transaction support through a Unit of Work pattern
+- **Outbox Pattern**: Reliable messaging implementation for distributed systems
+- **Flexible Configuration**: Easy setup with options for customization
+- **Background Service Integration**: Built-in support for processing outbox messages
+- **Retry Logic**: Robust error handling with configurable retry mechanisms
 
 ## Getting Started
 
 ### Installation
 
-#### 1. Clone the repository
-
 ```bash
-git clone https://github.com/yourusername/MongoRepository.git
-cd MongoRepository
+dotnet add package MongoRepository.Core
 ```
 
-#### 2. Build the solution
+### Basic Usage
 
-```bash
-dotnet build
+#### Configure Services
+
+```csharp
+// In Program.cs or Startup.cs
+builder.Services.AddMongoRepository(options =>
+{
+    options.ConnectionString = "mongodb://localhost:27017";
+    options.DatabaseName = "YourDatabaseName";
+});
 ```
 
-### Configuration
+Or using configuration:
 
-Configure MongoDB connection in `appsettings.json`:
+```csharp
+builder.Services.AddMongoRepository(builder.Configuration);
+```
+
+With the following in appsettings.json:
 
 ```json
 {
@@ -43,283 +50,282 @@ Configure MongoDB connection in `appsettings.json`:
 }
 ```
 
-## Docker Support
-
-You can run both MongoDB and the sample application using Docker Compose:
-
-```bash
-docker-compose up -d
-```
-
-This will start:
-- MongoDB container accessible at `mongodb://localhost:27017`
-- Sample API application accessible at `http://localhost:5000` and `https://localhost:5001`
-
-To stop the containers:
-
-```bash
-docker-compose down
-```
-
-To remove the containers and volumes:
-
-```bash
-docker-compose down -v
-```
-
-### Usage
-
-#### 1. Define your entity models
-
-Create a class that inherits from `Entity` or implements `IEntity`:
+#### Define Your Models
 
 ```csharp
-using MongoRepository.Core.Models;
-
-public class Product : Entity
+public class Product
 {
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; }
+    
     public string Name { get; set; }
+    
     public decimal Price { get; set; }
-    public string Category { get; set; }
+    
+    public DateTime CreatedAt { get; set; }
 }
 ```
 
-#### 2. Register the repository services
-
-In your `Program.cs` or `Startup.cs`:
-
-```csharp
-using MongoRepository.Core.Extensions;
-
-// Using configuration from appsettings.json
-builder.Services.AddMongoRepository(builder.Configuration);
-
-// Or using explicit settings
-var settings = new MongoDbSettings 
-{
-    ConnectionString = "mongodb://localhost:27017",
-    DatabaseName = "YourDatabaseName"
-};
-builder.Services.AddMongoRepository(settings);
-```
-
-#### 3. Use the repository in your services or controllers
+#### Basic Repository Operations
 
 ```csharp
 public class ProductService
 {
-    private readonly IRepository<Product> _productRepository;
-
-    public ProductService(IRepository<Product> productRepository)
+    private readonly IRepository<Product> _repository;
+    
+    public ProductService(IRepository<Product> repository)
     {
-        _productRepository = productRepository;
+        _repository = repository;
     }
-
-    public async Task<Product> GetProductByIdAsync(string id)
-    {
-        return await _productRepository.GetByIdAsync(id);
-    }
-
+    
     public async Task<IEnumerable<Product>> GetAllProductsAsync()
     {
-        return await _productRepository.GetAllAsync();
+        return await _repository.GetAllAsync();
     }
-
+    
+    public async Task<Product> GetProductByIdAsync(string id)
+    {
+        return await _repository.GetByIdAsync(id);
+    }
+    
     public async Task CreateProductAsync(Product product)
     {
-        await _productRepository.AddAsync(product);
+        await _repository.AddAsync(product);
     }
-
+    
     public async Task UpdateProductAsync(Product product)
     {
-        await _productRepository.UpdateAsync(product);
+        await _repository.UpdateAsync(product);
     }
-
+    
     public async Task DeleteProductAsync(string id)
     {
-        await _productRepository.DeleteAsync(id);
+        await _repository.DeleteAsync(id);
     }
 }
 ```
 
-#### 4. Using transactions with Unit of Work
+## Advanced Features
+
+### Using MongoDB Filter Definitions
 
 ```csharp
-public class OrderService
+public async Task<IEnumerable<Product>> GetExpensiveProductsAsync(decimal minPrice)
 {
-    private readonly IUnitOfWork _unitOfWork;
-
-    public OrderService(IUnitOfWork unitOfWork)
-    {
-        _unitOfWork = unitOfWork;
-    }
-
-    public async Task CreateOrderWithItemsAsync(Order order, List<OrderItem> orderItems)
-    {
-        try
-        {
-            await _unitOfWork.BeginTransactionAsync();
-
-            var orderRepository = _unitOfWork.GetRepository<Order>();
-            var orderItemRepository = _unitOfWork.GetRepository<OrderItem>();
-
-            await orderRepository.AddAsync(order);
-
-            foreach (var item in orderItems)
-            {
-                item.OrderId = order.Id;
-                await orderItemRepository.AddAsync(item);
-            }
-
-            await _unitOfWork.CommitTransactionAsync();
-        }
-        catch
-        {
-            await _unitOfWork.AbortTransactionAsync();
-            throw;
-        }
-    }
+    var filter = Builders<Product>.Filter.Gte(p => p.Price, minPrice);
+    return await _repository.GetWithDefinitionAsync(filter);
 }
 ```
 
-#### 5. Using advanced repository features
+### Paging and Sorting
 
 ```csharp
-public class ProductAnalyticsService
+public async Task<IEnumerable<Product>> GetPagedProductsAsync(int page, int pageSize)
 {
-    private readonly IAdvancedRepository<Product> _productRepository;
-
-    public ProductAnalyticsService(IAdvancedRepository<Product> productRepository)
-    {
-        _productRepository = productRepository;
-    }
-
-    public async Task<PagedResult<Product>> GetPaginatedProductsAsync(int page, int pageSize)
-    {
-        return await _productRepository.GetPagedAsync(
-            _ => true,
-            p => p.Price,
-            ascending: false,
-            page: page,
-            pageSize: pageSize);
-    }
-
-    public async Task<IEnumerable<ProductSummary>> GetProductSummariesAsync()
-    {
-        return await _productRepository.GetWithProjectionAsync(
-            p => p.Category == "Electronics",
-            p => new ProductSummary
-            {
-                Id = p.Id,
-                Name = p.Name,
-                Price = p.Price
-            });
-    }
-}
-
-public class ProductSummary
-{
-    public string Id { get; set; }
-    public string Name { get; set; }
-    public decimal Price { get; set; }
+    return await _repository.GetPagedAsync(
+        p => true,
+        p => p.CreatedAt,
+        false,
+        page,
+        pageSize);
 }
 ```
 
-#### 6. Working with PagedResult
-
-The `PagedResult<T>` class provides comprehensive pagination metadata for data tables:
+### Using Projections
 
 ```csharp
-// Controller or API Endpoint
-public async Task<IActionResult> GetPagedProducts(int page = 1, int pageSize = 10)
+public async Task<IEnumerable<ProductSummary>> GetProductSummariesAsync()
 {
-    var pagedResult = await _productRepository.GetPagedAsync(
-        _ => true,
-        p => p.Name,
-        ascending: true,
-        page: page,
-        pageSize: pageSize);
-        
-    // PagedResult<T> includes:
-    // - Items: The collection for the current page
-    // - Page: Current page number
-    // - PageSize: Number of items per page
-    // - TotalItems: Total count across all pages
-    // - TotalPages: Total number of pages
-    // - HasPreviousPage: Whether there's a previous page
-    // - HasNextPage: Whether there's a next page
-    
-    return Ok(pagedResult);
-}
-```
-
-#### 7. Advanced MongoDB-Native Filtering and Projection
-
-When LINQ expressions don't translate well to MongoDB queries, use the native MongoDB definitions:
-
-```csharp
-public async Task<IActionResult> GetAdvancedFilteredProducts(int page = 1, int pageSize = 10)
-{
-    // Use MongoDB's native filter builders for complex queries
-    var filterBuilder = Builders<Product>.Filter;
-    var filter = filterBuilder.And(
-        filterBuilder.Regex(p => p.Name, new BsonRegularExpression("^i", "i")), // Starts with "i", case insensitive
-        filterBuilder.Or(
-            filterBuilder.Gt(p => p.Price, 100),
-            filterBuilder.In(p => p.Category, new[] { "Electronics", "Gadgets" })
-        ),
-        filterBuilder.Exists(p => p.Tags) // Field must exist
-    );
-    
-    // Use MongoDB's sort builder
-    var sort = Builders<Product>.Sort.Descending(p => p.Price);
-    
-    // Get results with native MongoDB definitions
-    var results = await _productRepository.GetPagedWithDefinitionAsync(filter, sort, page, pageSize);
-    return Ok(results);
-}
-
-public async Task<IActionResult> GetProductsWithProjection()
-{
-    // Use MongoDB's native projection builder to select specific fields
-    var projectionBuilder = Builders<Product>.Projection;
-    var projection = projectionBuilder
+    var projection = Builders<Product>.Projection
         .Include(p => p.Id)
         .Include(p => p.Name)
-        .Include(p => p.Price)
-        .Include("metadata.rating") // Access nested document fields
-        .Exclude("_id"); // Exclude MongoDB internal ID
-    
-    // Create a filter
-    var filter = Builders<Product>.Filter.Gt(p => p.Price, 50);
-    
-    // Get projected results
-    var results = await _productRepository.GetWithDefinitionAsync(filter, projection);
-    return Ok(results);
+        .Include(p => p.Price);
+        
+    return await _repository.GetWithProjectionAsync<ProductSummary>(
+        Builders<Product>.Filter.Empty,
+        projection);
 }
 ```
 
-##### Common scenarios where MongoDB-native filters are required:
+### Transactions with Unit of Work
 
-1. **Text search and regex operations** - For pattern matching, case-insensitive search
-2. **Geospatial queries** - For location-based searches
-3. **Querying nested arrays** - For array element matching with complex conditions
-4. **Field existence checks** - When you need to check if a field exists
-5. **Working with JSON directly** - When your C# model doesn't fully match the MongoDB schema
-6. **Complex logical combinations** - When you need advanced AND/OR/NOR logic
-
-## Sample Application
-
-A sample minimal API application is included in the `samples/MongoRepository.Sample` directory. It demonstrates how to use the repository with a simple Todo application.
-
-To run the sample:
-
-```bash
-cd samples/MongoRepository.Sample
-dotnet run
+```csharp
+public async Task TransferFundsAsync(string fromAccountId, string toAccountId, decimal amount)
+{
+    await _unitOfWork.BeginTransactionAsync();
+    
+    try
+    {
+        var accountRepo = _unitOfWork.GetRepository<Account>();
+        
+        var fromAccount = await accountRepo.GetByIdAsync(fromAccountId);
+        var toAccount = await accountRepo.GetByIdAsync(toAccountId);
+        
+        fromAccount.Balance -= amount;
+        toAccount.Balance += amount;
+        
+        await accountRepo.UpdateAsync(fromAccount);
+        await accountRepo.UpdateAsync(toAccount);
+        
+        // Record the transaction
+        var transactionRepo = _unitOfWork.GetRepository<Transaction>();
+        await transactionRepo.AddAsync(new Transaction
+        {
+            FromAccountId = fromAccountId,
+            ToAccountId = toAccountId,
+            Amount = amount,
+            Timestamp = DateTime.UtcNow
+        });
+        
+        await _unitOfWork.CommitTransactionAsync();
+    }
+    catch
+    {
+        await _unitOfWork.AbortTransactionAsync();
+        throw;
+    }
+}
 ```
 
-Open your browser to `https://localhost:5001/swagger` to see the API documentation and test the endpoints.
+## Outbox Pattern Integration
+
+The outbox pattern ensures reliable message delivery between services by storing messages in a database before processing them.
+
+### Configure Outbox Services
+
+```csharp
+// In Program.cs or Startup.cs
+builder.Services.AddOutboxPattern(builder.Configuration);
+
+// Register message handlers
+builder.Services.AddOutboxMessageHandler<OrderCreatedHandler, OrderCreatedMessage>();
+```
+
+With the following in appsettings.json:
+
+```json
+{
+  "OutboxSettings": {
+    "ProcessingIntervalSeconds": 10,
+    "MaxRetryAttempts": 3,
+    "RetryDelaySeconds": 60,
+    "BatchSize": 10,
+    "AutoStartProcessor": true
+  }
+}
+```
+
+### Define Messages
+
+```csharp
+public class OrderCreatedMessage
+{
+    public string OrderId { get; set; }
+    public decimal TotalAmount { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+```
+
+### Implement Message Handlers
+
+```csharp
+public class OrderCreatedHandler : IMessageHandler<OrderCreatedMessage>
+{
+    private readonly ILogger<OrderCreatedHandler> _logger;
+    
+    public OrderCreatedHandler(ILogger<OrderCreatedHandler> logger)
+    {
+        _logger = logger;
+    }
+    
+    public string MessageType => typeof(OrderCreatedMessage).FullName;
+    
+    public Task HandleAsync(OrderCreatedMessage message)
+    {
+        _logger.LogInformation("Processing order {OrderId} for {TotalAmount}", 
+            message.OrderId, message.TotalAmount);
+            
+        // Process the message (e.g., send email, update analytics, etc.)
+        
+        return Task.CompletedTask;
+    }
+}
+```
+
+### Using the Outbox in Your Code
+
+```csharp
+public async Task CreateOrderAsync(Order order, List<OrderItem> items)
+{
+    await _unitOfWork.BeginTransactionAsync();
+    
+    try
+    {
+        var orderRepo = _unitOfWork.GetRepository<Order>();
+        var itemRepo = _unitOfWork.GetRepository<OrderItem>();
+        
+        await orderRepo.AddAsync(order);
+        
+        foreach (var item in items)
+        {
+            item.OrderId = order.Id;
+            await itemRepo.AddAsync(item);
+        }
+        
+        // Add message to outbox as part of the transaction
+        var message = new OrderCreatedMessage
+        {
+            OrderId = order.Id,
+            TotalAmount = order.TotalAmount,
+            CreatedAt = DateTime.UtcNow
+        };
+        
+        await _outboxService.AddMessageToTransactionAsync(message);
+        
+        await _unitOfWork.CommitTransactionAsync();
+    }
+    catch
+    {
+        await _unitOfWork.AbortTransactionAsync();
+        throw;
+    }
+}
+```
+
+## Monitoring Outbox Messages
+
+```csharp
+public async Task<OutboxStatus> GetOutboxStatusAsync()
+{
+    var repository = _serviceProvider.GetRequiredService<IRepository<OutboxMessage>>();
+    
+    var pendingCount = await repository.CountAsync(
+        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Pending));
+        
+    var processingCount = await repository.CountAsync(
+        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Processing));
+        
+    var processedCount = await repository.CountAsync(
+        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Processed));
+        
+    var failedCount = await repository.CountAsync(
+        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Failed));
+        
+    var abandonedCount = await repository.CountAsync(
+        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Abandoned));
+    
+    return new OutboxStatus
+    {
+        Pending = pendingCount,
+        Processing = processingCount,
+        Processed = processedCount,
+        Failed = failedCount,
+        Abandoned = abandonedCount,
+        Total = pendingCount + processingCount + processedCount + failedCount + abandonedCount
+    };
+}
+```
 
 ## License
 
