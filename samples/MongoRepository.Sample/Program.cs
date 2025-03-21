@@ -2,6 +2,7 @@ using MongoRepository.Core.Extensions;
 using MongoRepository.Core.Models;
 using MongoRepository.Core.Repositories;
 using MongoRepository.Core.UnitOfWork;
+using MongoRepository.Sample.Data;
 using MongoRepository.Sample.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,12 +10,22 @@ var builder = WebApplication.CreateBuilder(args);
 // Add MongoDB repository services
 builder.Services.AddMongoRepository(builder.Configuration);
 
+// Add data seeder
+builder.Services.AddTransient<TodoSeeder>();
+
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// Seed the database
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<TodoSeeder>();
+    await seeder.SeedAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -131,8 +142,3 @@ app.MapGet("/todos/paged", async (
 .WithOpenApi();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
