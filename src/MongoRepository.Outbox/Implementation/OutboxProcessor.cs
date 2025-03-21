@@ -19,6 +19,8 @@ public class OutboxProcessor : BackgroundService
     private readonly ILogger<OutboxProcessor> _logger;
     private readonly Dictionary<string, Type> _handlerTypes = new();
     private readonly JsonSerializerOptions _jsonOptions;
+    private Task? _processingTask;
+    private readonly SemaphoreSlim _processingLock = new(1, 1);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxProcessor"/> class.
@@ -73,50 +75,172 @@ public class OutboxProcessor : BackgroundService
         {
             try
             {
-                await ProcessPendingMessagesAsync(stoppingToken);
+                // Start a new processing task
+                _processingTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        // First, check for stuck messages that have been in Processing state for too long
+                        await ResetStuckMessagesAsync(stoppingToken);
+
+                        // Then process pending messages
+                        await ProcessPendingMessagesAsync(stoppingToken);
+                    }
+                    catch (Exception ex) when (!(ex is OperationCanceledException))
+                    {
+                        _logger.LogError(ex, "Error in outbox processing cycle");
+                    }
+                }, stoppingToken);
+
+                // Wait for the processing task to complete or for the delay
+                await Task.WhenAny(_processingTask, Task.Delay(TimeSpan.FromSeconds(_settings.ProcessingIntervalSeconds), stoppingToken));
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // This is expected during shutdown
+                break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing outbox messages");
-            }
 
-            await Task.Delay(TimeSpan.FromSeconds(_settings.ProcessingIntervalSeconds), stoppingToken);
+                // Add a small delay to prevent tight loops in error conditions
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+        }
+
+        _logger.LogInformation("Outbox processor stopping, waiting for in-progress work to complete...");
+
+        // Wait for any in-progress processing to complete
+        if (_processingTask != null && !_processingTask.IsCompleted)
+        {
+            try
+            {
+                // Wait for a reasonable amount of time for processing to complete
+                var timeoutTask = Task.Delay(TimeSpan.FromSeconds(30));
+                var completedTask = await Task.WhenAny(_processingTask, timeoutTask);
+
+                if (completedTask == timeoutTask)
+                {
+                    _logger.LogWarning("Graceful shutdown timeout reached, some message processing may have been interrupted");
+                }
+                else
+                {
+                    _logger.LogInformation("All in-progress outbox processing completed successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during graceful shutdown of outbox processor");
+            }
         }
 
         _logger.LogInformation("Outbox processor stopped");
     }
 
+    /// <summary>
+    /// Resets messages that have been stuck in Processing state for too long
+    /// </summary>
+    private async Task ResetStuckMessagesAsync(CancellationToken stoppingToken)
+    {
+        if (stoppingToken.IsCancellationRequested)
+            return;
+
+        await _processingLock.WaitAsync(stoppingToken);
+
+        try
+        {
+            using var scope = _serviceScopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IAdvancedRepository<OutboxMessage>>();
+
+            // Calculate the cutoff time for stuck messages
+            var cutoffTime = DateTime.UtcNow.AddMinutes(-_settings.ProcessingTtlMinutes);
+
+            // Find messages in Processing state that haven't been updated in a while
+            var filterBuilder = Builders<OutboxMessage>.Filter;
+            var filter = filterBuilder.And(
+                filterBuilder.Eq(m => m.Status, OutboxMessageStatus.Processing),
+                filterBuilder.Lt(m => m.ProcessedAt, cutoffTime)
+            );
+
+            var stuckMessages = await repository.GetWithDefinitionAsync(filter);
+            var messages = stuckMessages.ToList();
+
+            if (messages.Any())
+            {
+                _logger.LogWarning("Found {Count} stuck messages in Processing state", messages.Count);
+
+                foreach (var message in messages)
+                {
+                    // Reset message to Pending state for retry
+                    message.Status = OutboxMessageStatus.Pending;
+                    message.Error = $"Reset from Processing state after TTL of {_settings.ProcessingTtlMinutes} minutes exceeded";
+
+                    await repository.UpdateAsync(message);
+                    _logger.LogInformation("Reset stuck message {MessageId} to Pending state", message.Id);
+                }
+            }
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException))
+        {
+            _logger.LogError(ex, "Error checking for stuck messages");
+        }
+        finally
+        {
+            _processingLock.Release();
+        }
+    }
+
     private async Task ProcessPendingMessagesAsync(CancellationToken stoppingToken)
     {
-        using var scope = _serviceScopeFactory.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IAdvancedRepository<OutboxMessage>>();
-
-        // Get pending messages with a limit
-        var filterBuilder = Builders<OutboxMessage>.Filter;
-        var filter = filterBuilder.Eq(m => m.Status, OutboxMessageStatus.Pending);
-        var sort = Builders<OutboxMessage>.Sort.Ascending(m => m.CreatedAt);
-
-        _logger.LogDebug("Getting batch of {BatchSize} pending messages", _settings.BatchSize);
-
-        // Use the new overload with sort and limit
-        var pendingMessages = await repository.GetWithDefinitionAsync(filter, sort, _settings.BatchSize);
-
-        var messages = pendingMessages.ToList();
-        if (!messages.Any())
-        {
+        if (stoppingToken.IsCancellationRequested)
             return;
-        }
 
-        _logger.LogInformation("Processing {Count} pending outbox messages", messages.Count);
+        await _processingLock.WaitAsync(stoppingToken);
 
-        foreach (var message in messages)
+        try
         {
-            if (stoppingToken.IsCancellationRequested)
+            using var scope = _serviceScopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IAdvancedRepository<OutboxMessage>>();
+
+            // Get pending messages with a limit
+            var filterBuilder = Builders<OutboxMessage>.Filter;
+            var filter = filterBuilder.Eq(m => m.Status, OutboxMessageStatus.Pending);
+            var sort = Builders<OutboxMessage>.Sort.Ascending(m => m.CreatedAt);
+
+            _logger.LogDebug("Getting batch of {BatchSize} pending messages", _settings.BatchSize);
+
+            // Use the new overload with sort and limit
+            var pendingMessages = await repository.GetWithDefinitionAsync(filter, sort, _settings.BatchSize);
+
+            var messages = pendingMessages.ToList();
+            if (!messages.Any())
             {
-                break;
+                return;
             }
 
-            await ProcessMessageAsync(message, repository, scope.ServiceProvider, stoppingToken);
+            _logger.LogInformation("Processing {Count} pending outbox messages", messages.Count);
+
+            foreach (var message in messages)
+            {
+                if (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                await ProcessMessageAsync(message, repository, scope.ServiceProvider, stoppingToken);
+            }
+        }
+        finally
+        {
+            _processingLock.Release();
         }
     }
 
@@ -126,11 +250,15 @@ public class OutboxProcessor : BackgroundService
         IServiceProvider serviceProvider,
         CancellationToken stoppingToken)
     {
+        if (stoppingToken.IsCancellationRequested)
+            return;
+
         try
         {
             // Update message status to Processing
             message.Status = OutboxMessageStatus.Processing;
             message.ProcessingAttempts++;
+            message.ProcessedAt = DateTime.UtcNow; // Set the timestamp when processing started
             await repository.UpdateAsync(message);
 
             _logger.LogDebug("Processing message {MessageId} ({MessageType}), attempt {Attempt}",
@@ -172,7 +300,7 @@ public class OutboxProcessor : BackgroundService
             }
 
             // Update message status
-            message.ProcessedAt = DateTime.UtcNow;
+            message.ProcessedAt = DateTime.UtcNow; // Update the timestamp when processing completed
             message.Status = success ? OutboxMessageStatus.Processed : OutboxMessageStatus.Failed;
 
             // If message processing failed but we haven't reached max retries, set it back to pending
@@ -204,6 +332,12 @@ public class OutboxProcessor : BackgroundService
 
             await repository.UpdateAsync(message);
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // If we're shutting down, don't update the message status
+            // It will be picked up in the next processing cycle
+            _logger.LogWarning("Message processing for {MessageId} interrupted due to shutdown", message.Id);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing message {MessageId}", message.Id);
@@ -215,6 +349,7 @@ public class OutboxProcessor : BackgroundService
                 message.Status = message.ProcessingAttempts < _settings.MaxRetryAttempts
                     ? OutboxMessageStatus.Pending
                     : OutboxMessageStatus.Abandoned;
+                message.ProcessedAt = DateTime.UtcNow;
 
                 await repository.UpdateAsync(message);
             }

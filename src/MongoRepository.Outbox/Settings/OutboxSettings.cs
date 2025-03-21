@@ -34,4 +34,11 @@ public class OutboxSettings
     /// Default is true.
     /// </summary>
     public bool AutoStartProcessor { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the time in minutes after which a message in 'Processing' state 
+    /// will be considered stuck and reset to 'Pending'.
+    /// Default is 5 minutes.
+    /// </summary>
+    public int ProcessingTtlMinutes { get; set; } = 5;
 }
