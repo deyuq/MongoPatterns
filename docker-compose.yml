@@ -27,10 +27,10 @@ services:
     container_name: sample-api
     restart: always
     ports:
-      - "8080:80"
-      - "8081:443"
+      - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
       - MongoDbSettings__ConnectionString=mongodb://mongodb:27017
       - MongoDbSettings__DatabaseName=TodoDb
     depends_on:

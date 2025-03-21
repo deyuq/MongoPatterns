@@ -65,20 +65,4 @@ Accept: {{contentType}}
 
 ### Get paged todos (page 2, 2 items per page)
 GET http://{{host}}/todos/paged?page=2&pageSize=2
-Accept: {{contentType}}
-
-### Using HTTPS endpoint examples
-
-### Get all todos (HTTPS)
-GET https://{{hostname}}:8081/todos
-Accept: {{contentType}}
-
-### Create a new todo (HTTPS)
-POST https://{{hostname}}:8081/todos
-Content-Type: {{contentType}}
-
-{
-  "title": "HTTPS Todo Item",
-  "description": "This is a new todo item created via HTTPS request",
-  "isCompleted": false
-} 
+Accept: {{contentType}} 
