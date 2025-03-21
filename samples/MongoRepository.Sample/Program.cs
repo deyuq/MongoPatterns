@@ -127,14 +127,14 @@ app.MapGet("/todos/paged", async (
     int pageSize,
     IAdvancedRepository<TodoItem> repository) =>
 {
-    var todos = await repository.GetPagedAsync(
+    var pagedResult = await repository.GetPagedAsync(
         _ => true,
         t => t.CreatedAt,
         false,
         page,
         pageSize);
 
-    return Results.Ok(todos);
+    return Results.Ok(pagedResult);
 })
 .WithName("GetPagedTodos")
 .WithOpenApi();

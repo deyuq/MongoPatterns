@@ -32,8 +32,8 @@ public interface IAdvancedRepository<TEntity> : IRepository<TEntity> where TEnti
     /// <param name="ascending">Whether to sort ascending</param>
     /// <param name="page">The page number (1-based)</param>
     /// <param name="pageSize">The page size</param>
-    /// <returns>A page of entities</returns>
-    Task<IEnumerable<TEntity>> GetPagedAsync(
+    /// <returns>A paged result containing the entities and pagination metadata</returns>
+    Task<PagedResult<TEntity>> GetPagedAsync(
         Expression<Func<TEntity, bool>> filter,
         Expression<Func<TEntity, object>> sortField,
         bool ascending = true,

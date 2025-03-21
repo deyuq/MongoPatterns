@@ -54,8 +54,8 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
     /// <param name="ascending">Whether to sort ascending</param>
     /// <param name="page">The page number (1-based)</param>
     /// <param name="pageSize">The page size</param>
-    /// <returns>A page of entities</returns>
-    public virtual async Task<IEnumerable<TEntity>> GetPagedAsync(
+    /// <returns>A paged result containing the entities and pagination metadata</returns>
+    public virtual async Task<PagedResult<TEntity>> GetPagedAsync(
         Expression<Func<TEntity, bool>> filter,
         Expression<Func<TEntity, object>> sortField,
         bool ascending = true,
@@ -67,20 +67,44 @@ public class MongoAdvancedRepository<TEntity> : MongoRepository<TEntity>, IAdvan
             ? Builders<TEntity>.Sort.Ascending(sortField)
             : Builders<TEntity>.Sort.Descending(sortField);
 
+        // Count total items for pagination metadata
+        long totalItems;
         if (_session != null)
         {
-            return await _collection.Find(_session, filter)
+            totalItems = await _collection.CountDocumentsAsync(_session, filter);
+        }
+        else
+        {
+            totalItems = await _collection.CountDocumentsAsync(filter);
+        }
+
+        // Get the items for the current page
+        IEnumerable<TEntity> items;
+        if (_session != null)
+        {
+            items = await _collection.Find(_session, filter)
+                .Sort(sort)
+                .Skip(skip)
+                .Limit(pageSize)
+                .ToListAsync();
+        }
+        else
+        {
+            items = await _collection.Find(filter)
                 .Sort(sort)
                 .Skip(skip)
                 .Limit(pageSize)
                 .ToListAsync();
         }
 
-        return await _collection.Find(filter)
-            .Sort(sort)
-            .Skip(skip)
-            .Limit(pageSize)
-            .ToListAsync();
+        // Create and return the paged result
+        return new PagedResult<TEntity>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems
+        };
     }
 
     /// <summary>

@@ -194,7 +194,7 @@ public class ProductAnalyticsService
         _productRepository = productRepository;
     }
 
-    public async Task<IEnumerable<Product>> GetPaginatedProductsAsync(int page, int pageSize)
+    public async Task<PagedResult<Product>> GetPaginatedProductsAsync(int page, int pageSize)
     {
         return await _productRepository.GetPagedAsync(
             _ => true,
@@ -222,6 +222,34 @@ public class ProductSummary
     public string Id { get; set; }
     public string Name { get; set; }
     public decimal Price { get; set; }
+}
+```
+
+#### 6. Working with PagedResult
+
+The `PagedResult<T>` class provides comprehensive pagination metadata for data tables:
+
+```csharp
+// Controller or API Endpoint
+public async Task<IActionResult> GetPagedProducts(int page = 1, int pageSize = 10)
+{
+    var pagedResult = await _productRepository.GetPagedAsync(
+        _ => true,
+        p => p.Name,
+        ascending: true,
+        page: page,
+        pageSize: pageSize);
+        
+    // PagedResult<T> includes:
+    // - Items: The collection for the current page
+    // - Page: Current page number
+    // - PageSize: Number of items per page
+    // - TotalItems: Total count across all pages
+    // - TotalPages: Total number of pages
+    // - HasPreviousPage: Whether there's a previous page
+    // - HasNextPage: Whether there's a next page
+    
+    return Ok(pagedResult);
 }
 ```
 
