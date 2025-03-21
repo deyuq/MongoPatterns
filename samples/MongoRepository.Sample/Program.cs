@@ -188,21 +188,20 @@ app.MapGet("/todos/projected", async (
         filterBuilder.Ne(t => t.CompletedAt, null)
     );
 
-    // Project to a different shape (selecting specific fields)
-    var projection = projectionBuilder
-        .Include(t => t.Id)
-        .Include(t => t.Title)
-        .Include(t => t.IsCompleted)
-        .Include(t => t.CompletedAt)
-        .Exclude("_id"); // This is how you exclude MongoDB's _id field if needed
-
-    // Using MongoDB sort builder
+    // Create a class to hold our projection result
+    // Define a nested class for the projected result
     var sort = Builders<TodoItem>.Sort.Descending(t => t.CompletedAt!);
 
-    // Get projected results with limit
-    var results = await repository.GetWithDefinitionAsync<BsonDocument>(
+    // Get projected results with limit using a strongly-typed projection
+    var results = await repository.GetWithDefinitionAsync<TodoItemSummary>(
         filter,
-        projection,
+        projectionBuilder.Expression(t => new TodoItemSummary
+        {
+            Id = t.Id,
+            Title = t.Title,
+            IsCompleted = t.IsCompleted,
+            CompletedAt = t.CompletedAt
+        }),
         sort,
         limit: 10);
 
