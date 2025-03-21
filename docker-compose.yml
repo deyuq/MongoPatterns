@@ -14,11 +14,11 @@ services:
     networks:
       - mongo-network
     healthcheck:
-      test: mongosh --eval 'db.runCommand("ping").ok' localhost:27017/test --quiet
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok", "--quiet"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
 
   sample-api:
     build:
