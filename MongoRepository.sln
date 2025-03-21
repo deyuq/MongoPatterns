@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{FD27
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoRepository.Sample", "samples\MongoRepository.Sample\MongoRepository.Sample.csproj", "{1BC774C8-0876-41D3-9C25-F75F334E596F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoRepository.Outbox", "src\MongoRepository.Outbox\MongoRepository.Outbox.csproj", "{DEA42982-84A9-44ED-858B-4AD3E8E542F5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{1BC774C8-0876-41D3-9C25-F75F334E596F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1BC774C8-0876-41D3-9C25-F75F334E596F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1BC774C8-0876-41D3-9C25-F75F334E596F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DEA42982-84A9-44ED-858B-4AD3E8E542F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DEA42982-84A9-44ED-858B-4AD3E8E542F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DEA42982-84A9-44ED-858B-4AD3E8E542F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DEA42982-84A9-44ED-858B-4AD3E8E542F5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C16C9061-8B8F-4D9B-83E0-589AC678076E} = {3DE9A209-3825-4A21-999E-214250F8CF93}
 		{1BC774C8-0876-41D3-9C25-F75F334E596F} = {FD27E619-0D52-475D-B9D0-3912788F5EB9}
+		{DEA42982-84A9-44ED-858B-4AD3E8E542F5} = {3DE9A209-3825-4A21-999E-214250F8CF93}
 	EndGlobalSection
 EndGlobal

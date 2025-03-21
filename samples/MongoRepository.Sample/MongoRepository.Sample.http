@@ -1,6 +1,0 @@
-@MongoRepository.Sample_HostAddress = http://localhost:5276
-
-GET {{MongoRepository.Sample_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

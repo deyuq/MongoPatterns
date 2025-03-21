@@ -1,18 +1,34 @@
 using System.Threading;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
 using MongoRepository.Core.Extensions;
 using MongoRepository.Core.Models;
 using MongoRepository.Core.Repositories;
 using MongoRepository.Core.UnitOfWork;
+using MongoRepository.Outbox;
+using MongoRepository.Outbox.Extensions;
+using MongoRepository.Outbox.Models;
 using MongoRepository.Sample.Data;
+using MongoRepository.Sample.Handlers;
+using MongoRepository.Sample.Messages;
 using MongoRepository.Sample.Models;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add MongoDB repository services
 builder.Services.AddMongoRepository(builder.Configuration);
+
+// Add outbox pattern services
+builder.Services.AddOutboxPattern(
+    builder.Configuration.GetConnectionString("MongoDB") ?? "mongodb://localhost:27017",
+    builder.Configuration.GetValue<string>("MongoDbSettings:DatabaseName") ?? "TodoApp");
+
+// Register message handlers
+builder.Services.AddOutboxMessageHandler<TodoCreatedHandler, TodoCreatedMessage>();
 
 // Add data seeder
 builder.Services.AddTransient<TodoSeeder>();
@@ -57,10 +73,25 @@ app.MapGet("/todos/{id}", async (string id, IRepository<TodoItem> repository) =>
 .WithName("GetTodoById")
 .WithOpenApi();
 
-app.MapPost("/todos", async (TodoItem todoItem, IRepository<TodoItem> repository) =>
+// Create todo using outbox pattern
+app.MapPost("/todos", async (
+    TodoItem todo,
+    IRepository<TodoItem> repository,
+    IOutboxService outboxService) =>
 {
-    await repository.AddAsync(todoItem);
-    return Results.Created($"/todos/{todoItem.Id}", todoItem);
+    await repository.AddAsync(todo);
+
+    // Publish a message to the outbox
+    var message = new TodoCreatedMessage
+    {
+        TodoId = todo.Id,
+        Title = todo.Title,
+        CreatedAt = todo.CreatedAt
+    };
+
+    await outboxService.AddMessageAsync(message);
+
+    return Results.Created($"/todos/{todo.Id}", todo);
 })
 .WithName("CreateTodo")
 .WithOpenApi();
@@ -96,8 +127,11 @@ app.MapDelete("/todos/{id}", async (string id, IRepository<TodoItem> repository)
 .WithName("DeleteTodo")
 .WithOpenApi();
 
-// Transaction example
-app.MapPost("/todos/batch", async (List<TodoItem> todoItems, IUnitOfWork unitOfWork) =>
+// Transaction example - create multiple todos in a transaction
+app.MapPost("/todos/batch", async (
+    IEnumerable<TodoItem> todos,
+    IUnitOfWork unitOfWork,
+    IOutboxService outboxService) =>
 {
     try
     {
@@ -105,14 +139,24 @@ app.MapPost("/todos/batch", async (List<TodoItem> todoItems, IUnitOfWork unitOfW
 
         var repository = unitOfWork.GetRepository<TodoItem>();
 
-        foreach (var todoItem in todoItems)
+        foreach (var todo in todos)
         {
-            await repository.AddAsync(todoItem);
+            await repository.AddAsync(todo);
+
+            // Add a message to the transaction
+            var message = new TodoCreatedMessage
+            {
+                TodoId = todo.Id,
+                Title = todo.Title,
+                CreatedAt = todo.CreatedAt
+            };
+
+            await outboxService.AddMessageToTransactionAsync(message);
         }
 
         await unitOfWork.CommitTransactionAsync();
 
-        return Results.Created("/todos", todoItems);
+        return Results.Created("/todos", todos);
     }
     catch (Exception ex)
     {
@@ -188,27 +232,144 @@ app.MapGet("/todos/projected", async (
         filterBuilder.Ne(t => t.CompletedAt, null)
     );
 
-    // Create a class to hold our projection result
-    // Define a nested class for the projected result
+    // Define projection to TodoItemSummary
+    var projection = projectionBuilder.Expression(t => new TodoItemSummary
+    {
+        Id = t.Id,
+        Title = t.Title,
+        IsCompleted = t.IsCompleted,
+        CompletedAt = t.CompletedAt
+    });
+
+    // Sort by completion date
     var sort = Builders<TodoItem>.Sort.Descending(t => t.CompletedAt!);
 
-    // Get projected results with limit using a strongly-typed projection
+    // Get projected results with limit
     var results = await repository.GetWithDefinitionAsync<TodoItemSummary>(
         filter,
-        projectionBuilder.Expression(t => new TodoItemSummary
-        {
-            Id = t.Id,
-            Title = t.Title,
-            IsCompleted = t.IsCompleted,
-            CompletedAt = t.CompletedAt
-        }),
+        projection,
         sort,
-        limit: 10);
+        10);
 
     return Results.Ok(results);
 })
 .WithName("GetProjectedTodos")
 .WithOpenApi();
+
+// Example of using filter definitions
+app.MapGet("/todos/filter", async (
+    [FromQuery] string? titleContains,
+    [FromQuery] bool? isCompleted,
+    IAdvancedRepository<TodoItem> repository) =>
+{
+    var filterBuilder = Builders<TodoItem>.Filter.Empty;
+
+    if (!string.IsNullOrEmpty(titleContains))
+    {
+        filterBuilder &= Builders<TodoItem>.Filter.Regex(t => t.Title, new BsonRegularExpression(titleContains, "i"));
+    }
+
+    if (isCompleted.HasValue)
+    {
+        filterBuilder &= Builders<TodoItem>.Filter.Eq(t => t.IsCompleted, isCompleted.Value);
+    }
+
+    var todos = await repository.GetWithDefinitionAsync(filterBuilder);
+    return Results.Ok(todos);
+});
+
+// Example of using projections
+app.MapGet("/todos/summary", async (IAdvancedRepository<TodoItem> repository) =>
+{
+    // Simplified to use expressions instead of projection definitions
+    var todos = await repository.GetAllAsync();
+    var summaries = todos.Select(t => new TodoItemSummary
+    {
+        Id = t.Id,
+        Title = t.Title,
+        IsCompleted = t.IsCompleted,
+        CompletedAt = t.CompletedAt
+    }).ToList();
+
+    return Results.Ok(summaries);
+});
+
+// Example of advanced querying with pagination and sorting
+app.MapGet("/todos/advanced-query", async (
+    [FromQuery] string? titleContains,
+    [FromQuery] bool? isCompleted,
+    IAdvancedRepository<TodoItem> repository,
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 10,
+    [FromQuery] string sortBy = "CreatedAt",
+    [FromQuery] bool sortAscending = false) =>
+{
+    var filterBuilder = Builders<TodoItem>.Filter.Empty;
+
+    if (!string.IsNullOrEmpty(titleContains))
+    {
+        filterBuilder &= Builders<TodoItem>.Filter.Regex(t => t.Title, new BsonRegularExpression(titleContains, "i"));
+    }
+
+    if (isCompleted.HasValue)
+    {
+        filterBuilder &= Builders<TodoItem>.Filter.Eq(t => t.IsCompleted, isCompleted.Value);
+    }
+
+    var sortDefinition = sortAscending
+        ? Builders<TodoItem>.Sort.Ascending(sortBy)
+        : Builders<TodoItem>.Sort.Descending(sortBy);
+
+    var todos = await repository.GetPagedWithDefinitionAsync(
+        filterBuilder,
+        sortDefinition,
+        page,
+        pageSize);
+
+    return Results.Ok(new
+    {
+        Page = page,
+        PageSize = pageSize,
+        Total = await repository.CountAsync(expr => true),
+        Items = todos
+    });
+});
+
+// Example of full-text search
+app.MapGet("/todos/search", async (
+    [FromQuery] string searchText,
+    IAdvancedRepository<TodoItem> repository) =>
+{
+    var textSearchFilter = Builders<TodoItem>.Filter.Text(searchText);
+    var todos = await repository.GetWithDefinitionAsync(textSearchFilter);
+    return Results.Ok(todos);
+});
+
+// Monitoring endpoint for outbox messages
+app.MapGet("/outbox/status", async (MongoRepository.Outbox.Repositories.IRepository<OutboxMessage> repository) =>
+{
+    var pendingFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Pending);
+    var processingFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Processing);
+    var processedFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Processed);
+    var failedFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Failed);
+    var abandonedFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Abandoned);
+
+    var pendingCount = await repository.CountAsync(pendingFilter);
+    var processingCount = await repository.CountAsync(processingFilter);
+    var processedCount = await repository.CountAsync(processedFilter);
+    var failedCount = await repository.CountAsync(failedFilter);
+    var abandonedCount = await repository.CountAsync(abandonedFilter);
+
+    return Results.Ok(new
+    {
+        Pending = pendingCount,
+        Processing = processingCount,
+        Processed = processedCount,
+        Failed = failedCount,
+        Abandoned = abandonedCount,
+        Total = pendingCount + processingCount + processedCount + failedCount + abandonedCount
+    });
+});
 
 app.Run();
 
