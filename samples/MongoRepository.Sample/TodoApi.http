@@ -2,7 +2,7 @@
 @port = 8080
 @host = {{hostname}}:{{port}}
 @contentType = application/json
-@todoId = replace_with_actual_id
+@todoId = 67dd4732380585b9b6eb6b95
 
 ### Get all todos
 GET http://{{host}}/todos
@@ -65,4 +65,21 @@ Accept: {{contentType}}
 
 ### Get paged todos (page 2, 2 items per page)
 GET http://{{host}}/todos/paged?page=2&pageSize=2
+Accept: {{contentType}}
+
+### Get todos with advanced filtering (MongoDB-native filter definitions)
+# This example demonstrates:
+# 1. Complex regex filtering with case insensitivity (titles starting with "T")
+# 2. Logical operations (OR condition for completed todos OR created in the last week)
+# 3. Sorting by creation date in descending order
+GET http://{{host}}/todos/advanced?page=1&pageSize=5
+Accept: {{contentType}}
+
+### Get todos with custom projection (MongoDB-native projections)
+# This example demonstrates:
+# 1. Field existence filtering (only completed todos)
+# 2. Custom projection to select specific fields
+# 3. Sorting by completion date
+# 4. Limiting to 10 results
+GET http://{{host}}/todos/projected
 Accept: {{contentType}} 
