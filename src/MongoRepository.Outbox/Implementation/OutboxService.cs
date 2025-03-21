@@ -1,10 +1,8 @@
-using System;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using MongoRepository.Core.Repositories;
+using MongoRepository.Core.UnitOfWork;
 using MongoRepository.Outbox.Models;
-using MongoRepository.Outbox.Repositories;
-using MongoRepository.Outbox.UnitOfWork;
 
 namespace MongoRepository.Outbox.Implementation;
 

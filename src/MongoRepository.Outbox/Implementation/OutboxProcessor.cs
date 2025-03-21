@@ -1,15 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
+using MongoRepository.Core.Repositories;
 using MongoRepository.Outbox.Models;
-using MongoRepository.Outbox.Repositories;
 using MongoRepository.Outbox.Settings;
 
 namespace MongoRepository.Outbox.Implementation;
@@ -94,16 +89,19 @@ public class OutboxProcessor : BackgroundService
     private async Task ProcessPendingMessagesAsync(CancellationToken stoppingToken)
     {
         using var scope = _serviceScopeFactory.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IRepository<OutboxMessage>>();
+        var repository = scope.ServiceProvider.GetRequiredService<IAdvancedRepository<OutboxMessage>>();
 
         // Get pending messages with a limit
         var filterBuilder = Builders<OutboxMessage>.Filter;
         var filter = filterBuilder.Eq(m => m.Status, OutboxMessageStatus.Pending);
         var sort = Builders<OutboxMessage>.Sort.Ascending(m => m.CreatedAt);
 
-        var pendingMessages = await repository.GetWithDefinitionAsync(filter, sort: sort, limit: _settings.BatchSize);
+        _logger.LogDebug("Getting batch of {BatchSize} pending messages", _settings.BatchSize);
 
-        var messages = pendingMessages.ToList();
+        // Use the correct method signature
+        var pendingMessages = await repository.GetWithDefinitionAsync(filter);
+
+        var messages = pendingMessages.Take(_settings.BatchSize).ToList();
         if (!messages.Any())
         {
             return;

@@ -346,7 +346,7 @@ app.MapGet("/todos/search", async (
 });
 
 // Monitoring endpoint for outbox messages
-app.MapGet("/outbox/status", async (MongoRepository.Outbox.Repositories.IRepository<OutboxMessage> repository) =>
+app.MapGet("/outbox/status", async (MongoRepository.Core.Repositories.IRepository<OutboxMessage> repository) =>
 {
     var pendingFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Pending);
     var processingFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Processing);
@@ -354,11 +354,11 @@ app.MapGet("/outbox/status", async (MongoRepository.Outbox.Repositories.IReposit
     var failedFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Failed);
     var abandonedFilter = Builders<OutboxMessage>.Filter.Eq(m => m.Status, OutboxMessageStatus.Abandoned);
 
-    var pendingCount = await repository.CountAsync(pendingFilter);
-    var processingCount = await repository.CountAsync(processingFilter);
-    var processedCount = await repository.CountAsync(processedFilter);
-    var failedCount = await repository.CountAsync(failedFilter);
-    var abandonedCount = await repository.CountAsync(abandonedFilter);
+    var pendingCount = await repository.CountAsync(m => m.Status == OutboxMessageStatus.Pending);
+    var processingCount = await repository.CountAsync(m => m.Status == OutboxMessageStatus.Processing);
+    var processedCount = await repository.CountAsync(m => m.Status == OutboxMessageStatus.Processed);
+    var failedCount = await repository.CountAsync(m => m.Status == OutboxMessageStatus.Failed);
+    var abandonedCount = await repository.CountAsync(m => m.Status == OutboxMessageStatus.Abandoned);
 
     return Results.Ok(new
     {

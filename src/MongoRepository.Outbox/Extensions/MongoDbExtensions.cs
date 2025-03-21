@@ -2,10 +2,11 @@ using System;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
+using MongoRepository.Core.Repositories;
+using MongoRepository.Core.Settings;
+using MongoRepository.Core.UnitOfWork;
 using MongoRepository.Outbox.Infrastructure;
 using MongoRepository.Outbox.Models;
-using MongoRepository.Outbox.Repositories;
-using MongoRepository.Outbox.UnitOfWork;
 
 namespace MongoRepository.Outbox.Extensions;
 
@@ -34,13 +35,26 @@ public static class MongoDbExtensions
             return client.GetDatabase(databaseName);
         });
 
-        // Register unit of work and repository
+        // Register MongoDB settings
+        services.AddSingleton<IMongoDbSettings>(new MongoDbSettings
+        {
+            ConnectionString = connectionString,
+            DatabaseName = databaseName
+        });
+
+        // Register unit of work and repositories
         services.AddScoped<IUnitOfWork, MongoUnitOfWork>();
         services.AddScoped<IRepository<OutboxMessage>>(provider =>
         {
-            var database = provider.GetRequiredService<IMongoDatabase>();
-            var collection = database.GetCollection<OutboxMessage>("OutboxMessage");
-            return new MongoRepository<OutboxMessage>(collection);
+            var settings = provider.GetRequiredService<IMongoDbSettings>();
+            return new MongoRepository<OutboxMessage>(settings);
+        });
+
+        // Register advanced repository for OutboxMessage
+        services.AddScoped<IAdvancedRepository<OutboxMessage>>(provider =>
+        {
+            var settings = provider.GetRequiredService<IMongoDbSettings>();
+            return new MongoAdvancedRepository<OutboxMessage>(settings);
         });
 
         // Create the outbox message collection if it doesn't exist
@@ -65,7 +79,7 @@ public static class MongoDbExtensions
         IConfiguration configuration,
         string sectionName = "MongoDbSettings")
     {
-        var settings = configuration.GetSection(sectionName).Get<MongoDbSettings>();
+        var settings = configuration.GetSection(sectionName).Get<MongoDbConfigSettings>();
         if (settings == null)
         {
             throw new InvalidOperationException($"MongoDB settings not found in configuration section '{sectionName}'");
@@ -123,9 +137,9 @@ public static class MongoDbExtensions
     }
 
     /// <summary>
-    /// MongoDB settings
+    /// MongoDB settings for configuration
     /// </summary>
-    public class MongoDbSettings
+    public class MongoDbConfigSettings
     {
         /// <summary>
         /// Gets or sets the MongoDB connection string
