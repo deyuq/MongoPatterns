@@ -1,26 +1,25 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using MongoRepository.Core.UnitOfWork;
 using MongoRepository.Outbox;
-using MongoRepository.Outbox.Models;
 using MongoRepository.Sample.Messages;
 using MongoRepository.Sample.Models;
-using System.Text.Json;
 
 namespace MongoRepository.Sample.Controllers;
 
 /// <summary>
-/// Example of using MongoDB transactions with a replica set
+///     Example of using MongoDB transactions with a replica set
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class TransactionController : ControllerBase
 {
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IOutboxService _outboxService;
     private readonly ILogger<TransactionController> _logger;
+    private readonly IOutboxService _outboxService;
+    private readonly IUnitOfWork _unitOfWork;
 
     /// <summary>
-    /// Creates a new instance of the TransactionController
+    ///     Creates a new instance of the TransactionController
     /// </summary>
     public TransactionController(
         IUnitOfWork unitOfWork,
@@ -33,7 +32,7 @@ public class TransactionController : ControllerBase
     }
 
     /// <summary>
-    /// Creates multiple todos in a single transaction
+    ///     Creates multiple todos in a single transaction
     /// </summary>
     [HttpPost("batch")]
     public async Task<IActionResult> CreateMultipleTodos([FromBody] List<TodoCreateModel> models)
@@ -69,8 +68,8 @@ public class TransactionController : ControllerBase
 
                 // Add message to outbox (will be part of the transaction)
                 await _outboxService.AddMessageAsync(
-                    typeof(TodoCreatedMessage).FullName ?? "TodoCreatedMessage",
-                    JsonSerializer.Serialize(message));
+                    JsonSerializer.Serialize(message),
+                    nameof(TodoCreatedMessage));
 
                 _logger.LogInformation("Todo and message added: {TodoId}", todo.Id);
             }
@@ -91,7 +90,7 @@ public class TransactionController : ControllerBase
     }
 
     /// <summary>
-    /// Tests transaction rollback with a simulated error
+    ///     Tests transaction rollback with a simulated error
     /// </summary>
     [HttpPost("rollback-test")]
     public async Task<IActionResult> TestRollback([FromBody] List<TodoCreateModel> models)
@@ -127,16 +126,14 @@ public class TransactionController : ControllerBase
 
                 // Add message to outbox (will be part of the transaction)
                 await _outboxService.AddMessageAsync(
-                    typeof(TodoCreatedMessage).FullName ?? "TodoCreatedMessage",
-                    JsonSerializer.Serialize(message));
+                    JsonSerializer.Serialize(message),
+                    nameof(TodoCreatedMessage));
 
                 _logger.LogInformation("Todo and message added: {TodoId}", todo.Id);
 
                 // Simulate an error after the first item if there are multiple items
                 if (models.Count > 1 && models.IndexOf(model) == 0)
-                {
                     throw new Exception("Simulated error to test transaction rollback");
-                }
             }
 
             // This should never be reached in the test case

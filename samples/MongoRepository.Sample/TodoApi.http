@@ -1,8 +1,10 @@
 @hostname = localhost
-@port = 8080
+@port = 5276
 @host = {{hostname}}:{{port}}
 @contentType = application/json
 @todoId = 67dd4732380585b9b6eb6b95
+
+### Todos API
 
 ### Get all todos
 GET http://{{host}}/todos
@@ -36,29 +38,6 @@ Content-Type: {{contentType}}
 ### Delete a todo
 DELETE http://{{host}}/todos/{{todoId}}
 
-### Create batch of todos (transaction example)
-POST http://{{host}}/todos/batch
-Content-Type: {{contentType}}
-
-[
-  {
-    "title": "Batch Todo Item 1",
-    "description": "First item in the batch",
-    "isCompleted": false
-  },
-  {
-    "title": "Batch Todo Item 2",
-    "description": "Second item in the batch",
-    "isCompleted": true,
-    "completedAt": "2023-04-15T14:30:00Z"
-  },
-  {
-    "title": "Batch Todo Item 3",
-    "description": "Third item in the batch",
-    "isCompleted": false
-  }
-]
-
 ### Get paged todos (page 1, 2 items per page)
 GET http://{{host}}/todos/paged?page=1&pageSize=2
 Accept: {{contentType}}
@@ -67,19 +46,85 @@ Accept: {{contentType}}
 GET http://{{host}}/todos/paged?page=2&pageSize=2
 Accept: {{contentType}}
 
-### Get todos with advanced filtering (MongoDB-native filter definitions)
-# This example demonstrates:
-# 1. Complex regex filtering with case insensitivity (titles starting with "T")
-# 2. Logical operations (OR condition for completed todos OR created in the last week)
-# 3. Sorting by creation date in descending order
+### Get todos with advanced filtering
 GET http://{{host}}/todos/advanced?page=1&pageSize=5
 Accept: {{contentType}}
 
-### Get todos with custom projection (MongoDB-native projections)
-# This example demonstrates:
-# 1. Field existence filtering (only completed todos)
-# 2. Custom projection to select specific fields
-# 3. Sorting by completion date
-# 4. Limiting to 10 results
+### Get todos with custom projection
 GET http://{{host}}/todos/projected
-Accept: {{contentType}} 
+Accept: {{contentType}}
+
+### Get filtered todos
+GET http://{{host}}/todos/filter?titleContains=Test&isCompleted=true
+Accept: {{contentType}}
+
+### Get todo summaries
+GET http://{{host}}/todos/summary
+Accept: {{contentType}}
+
+### Get todos with advanced query
+GET http://{{host}}/todos/advanced-query?titleContains=Learn&isCompleted=false&page=1&pageSize=5&sortBy=CreatedAt&sortAscending=false
+Accept: {{contentType}}
+
+### Search todos (requires text index)
+GET http://{{host}}/todos/search?searchText=mongodb
+Accept: {{contentType}}
+
+### Transaction API
+
+### Create batch of todos with transaction
+POST http://{{host}}/api/transaction/batch
+Content-Type: {{contentType}}
+
+[
+  {
+    "title": "Batch Todo Item 1",
+    "description": "First item in the batch"
+  },
+  {
+    "title": "Batch Todo Item 2",
+    "description": "Second item in the batch"
+  },
+  {
+    "title": "Batch Todo Item 3",
+    "description": "Third item in the batch"
+  }
+]
+
+### Test transaction rollback
+POST http://{{host}}/api/transaction/rollback-test
+Content-Type: {{contentType}}
+
+[
+  {
+    "title": "Will be rolled back 1",
+    "description": "This item should be created but rolled back"
+  },
+  {
+    "title": "Will be rolled back 2",
+    "description": "This item should cause an error and trigger rollback"
+  }
+]
+
+### Outbox API
+
+### Get outbox status
+GET http://{{host}}/outbox/status
+Accept: {{contentType}}
+
+### Get all outbox messages
+GET http://{{host}}/outbox/messages
+Accept: {{contentType}}
+
+### Get outbox messages by status
+GET http://{{host}}/outbox/messages?status=Processed
+Accept: {{contentType}}
+
+### Get outbox message by ID
+@messageId = 5f9b7b3c9d8e7f6a5b4c3d2e
+GET http://{{host}}/outbox/messages/{{messageId}}
+Accept: {{contentType}}
+
+### Reprocess failed outbox message
+POST http://{{host}}/outbox/messages/{{messageId}}/reprocess
+Content-Type: {{contentType}} 

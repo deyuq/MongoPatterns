@@ -1,13 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using MongoRepository.Core.Models;
 using MongoRepository.Core.Repositories;
-using MongoRepository.Core.UnitOfWork;
 using MongoRepository.Outbox;
 using MongoRepository.Sample.Messages;
 using MongoRepository.Sample.Models;
-using System.Text.Json;
 
 namespace MongoRepository.Sample.Controllers;
 
@@ -33,10 +30,7 @@ public class TodosController : ControllerBase
     public async Task<IActionResult> GetById(string id, [FromServices] IRepository<TodoItem> repository)
     {
         var todo = await repository.GetByIdAsync(id);
-        if (todo == null)
-        {
-            return NotFound();
-        }
+        if (todo == null) return NotFound();
         return Ok(todo);
     }
 
@@ -68,10 +62,7 @@ public class TodosController : ControllerBase
         [FromServices] IRepository<TodoItem> repository)
     {
         var todo = await repository.GetByIdAsync(id);
-        if (todo == null)
-        {
-            return NotFound();
-        }
+        if (todo == null) return NotFound();
 
         updatedTodoItem.Id = id;
         await repository.UpdateAsync(updatedTodoItem);
@@ -85,55 +76,11 @@ public class TodosController : ControllerBase
         [FromServices] IRepository<TodoItem> repository)
     {
         var todo = await repository.GetByIdAsync(id);
-        if (todo == null)
-        {
-            return NotFound();
-        }
+        if (todo == null) return NotFound();
 
         await repository.DeleteAsync(id);
 
         return NoContent();
-    }
-
-    [HttpPost("batch")]
-    public async Task<IActionResult> CreateBatch(
-        [FromBody] IEnumerable<TodoItem> todos,
-        [FromServices] IUnitOfWork unitOfWork,
-        [FromServices] IOutboxService outboxService)
-    {
-        try
-        {
-            await unitOfWork.BeginTransactionAsync();
-
-            var repository = unitOfWork.GetRepository<TodoItem>();
-
-            foreach (var todo in todos)
-            {
-                await repository.AddAsync(todo);
-
-                // Add a message to the transaction
-                var message = new TodoCreatedMessage
-                {
-                    TodoId = todo.Id,
-                    Title = todo.Title,
-                    CreatedAt = todo.CreatedAt
-                };
-
-                // Ensuring method compatibility - should use AddMessageAsync or similar method
-                await outboxService.AddMessageAsync(
-                    typeof(TodoCreatedMessage).FullName ?? "TodoCreatedMessage",
-                    JsonSerializer.Serialize(message));
-            }
-
-            await unitOfWork.CommitTransactionAsync();
-
-            return CreatedAtAction(nameof(GetAll), todos);
-        }
-        catch (Exception ex)
-        {
-            await unitOfWork.AbortTransactionAsync();
-            return Problem(ex.Message);
-        }
     }
 
     [HttpGet("paged")]
@@ -163,7 +110,8 @@ public class TodosController : ControllerBase
 
         // Creating complex filters that may not translate well with LINQ expressions
         var filter = filterBuilder.And(
-            filterBuilder.Regex(t => t.Title, new BsonRegularExpression("^T", "i")), // Starts with "T", case insensitive
+            filterBuilder.Regex(t => t.Title,
+                new BsonRegularExpression("^T", "i")), // Starts with "T", case insensitive
             filterBuilder.Or(
                 filterBuilder.Eq(t => t.IsCompleted, true),
                 filterBuilder.Gt(t => t.CreatedAt, DateTime.UtcNow.AddDays(-7)) // Created in the last week
@@ -209,7 +157,7 @@ public class TodosController : ControllerBase
         var sort = Builders<TodoItem>.Sort.Descending(t => t.CompletedAt!);
 
         // Get projected results with limit
-        var results = await repository.GetWithDefinitionAsync<TodoItemSummary>(
+        var results = await repository.GetWithDefinitionAsync(
             filter,
             projection,
             sort,
@@ -227,14 +175,10 @@ public class TodosController : ControllerBase
         var filterBuilder = Builders<TodoItem>.Filter.Empty;
 
         if (!string.IsNullOrEmpty(titleContains))
-        {
-            filterBuilder &= Builders<TodoItem>.Filter.Regex(t => t.Title, new BsonRegularExpression(titleContains, "i"));
-        }
+            filterBuilder &=
+                Builders<TodoItem>.Filter.Regex(t => t.Title, new BsonRegularExpression(titleContains, "i"));
 
-        if (isCompleted.HasValue)
-        {
-            filterBuilder &= Builders<TodoItem>.Filter.Eq(t => t.IsCompleted, isCompleted.Value);
-        }
+        if (isCompleted.HasValue) filterBuilder &= Builders<TodoItem>.Filter.Eq(t => t.IsCompleted, isCompleted.Value);
 
         var todos = await repository.GetWithDefinitionAsync(filterBuilder);
         return Ok(todos);
@@ -269,14 +213,10 @@ public class TodosController : ControllerBase
         var filterBuilder = Builders<TodoItem>.Filter.Empty;
 
         if (!string.IsNullOrEmpty(titleContains))
-        {
-            filterBuilder &= Builders<TodoItem>.Filter.Regex(t => t.Title, new BsonRegularExpression(titleContains, "i"));
-        }
+            filterBuilder &=
+                Builders<TodoItem>.Filter.Regex(t => t.Title, new BsonRegularExpression(titleContains, "i"));
 
-        if (isCompleted.HasValue)
-        {
-            filterBuilder &= Builders<TodoItem>.Filter.Eq(t => t.IsCompleted, isCompleted.Value);
-        }
+        if (isCompleted.HasValue) filterBuilder &= Builders<TodoItem>.Filter.Eq(t => t.IsCompleted, isCompleted.Value);
 
         var sortDefinition = sortAscending
             ? Builders<TodoItem>.Sort.Ascending(sortBy)
