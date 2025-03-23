@@ -32,14 +32,16 @@ public class TodoCreatedHandler : IMessageHandler<TodoCreatedMessage>
     /// </summary>
     /// <param name="message">The message to handle</param>
     /// <returns>A task representing the asynchronous operation</returns>
-    public Task HandleAsync(TodoCreatedMessage message)
+    public async Task HandleAsync(TodoCreatedMessage message)
     {
         _logger.LogInformation("Processing TodoCreatedMessage: Title={Title}, Id={Id}, CreatedAt={CreatedAt}",
             message.Title, message.TodoId, message.CreatedAt);
 
         // In a real application, you might want to send an email, publish to an event bus, etc.
         // This is just a demo handler that logs the message
+        await Task.Delay(5000);
 
-        return Task.CompletedTask;
+        _logger.LogInformation("TodoCreatedMessage processed: Title={Title}, Id={Id}, CreatedAt={CreatedAt}",
+            message.Title, message.TodoId, message.CreatedAt);
     }
 }

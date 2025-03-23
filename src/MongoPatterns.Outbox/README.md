@@ -16,6 +16,7 @@ This approach ensures that:
 - **Standalone package**: Can be used independently or with MongoRepository.Core
 - **Transactional integration**: Works seamlessly with MongoDB transactions
 - **Reliable message processing**: Ensures at-least-once delivery with configurable retry mechanisms
+- **Claim-based processing**: Supports multiple service instances processing messages concurrently
 - **Extensible message handlers**: Easy registration of custom message handlers
 - **Background processing**: Automatic background processing of outbox messages
 - **Configurable**: Customize processing intervals, batch sizes, and other settings
@@ -45,7 +46,8 @@ Add outbox settings to your `appsettings.json`:
     "BatchSize": 10,
     "AutoStartProcessor": true,
     "ProcessingTtlMinutes": 15,
-    "CollectionPrefix": "yourservice"
+    "CollectionPrefix": "yourservice",
+    "ClaimTimeoutMinutes": 2
   }
 }
 ```
@@ -240,6 +242,7 @@ The outbox pattern can be configured using the following settings:
 | `AutoStartProcessor`          | Whether to automatically start the background processor                                         | true    |
 | `ProcessingTtlMinutes`        | Time (in minutes) after which a message stuck in "Processing" status will be reset to "Pending" | 15      |
 | `CollectionPrefix`            | Prefix for outbox collection name to support microservice-specific outbox collections           | null    |
+| `ClaimTimeoutMinutes`         | Time (in minutes) after which a message claim expires                                           | 2       |
 
 ## Processing TTL Feature
 
@@ -265,6 +268,52 @@ By setting a unique `CollectionPrefix` for each service, you can:
 - Simplify monitoring and debugging by service
 
 For example, if your CollectionPrefix is set to "orderservice", the outbox collection will be named "orderservice_outboxmessage" instead of just "outboxmessage".
+
+## Concurrent Message Processing with Claims
+
+The outbox processor implements a claim-based approach to enable multiple service instances to process messages concurrently without race conditions:
+
+### How It Works
+
+1. **Instance Identification**: Each processor instance generates a unique ID at startup
+2. **Atomic Message Claiming**: Messages are claimed atomically using MongoDB's `FindOneAndUpdate` operation
+3. **Claim Expiration**: Claims have a configurable timeout (`ClaimTimeoutMinutes`) to handle instance failures
+4. **Claim Release**: Claims are automatically released when a message is processed or the service shuts down
+
+### Configuration
+
+Configure the claim timeout in your `appsettings.json`:
+
+```json
+{
+  "OutboxSettings": {
+    "ClaimTimeoutMinutes": 2
+  }
+}
+```
+
+### Benefits
+
+- **No race conditions**: Multiple instances can process messages from the same collection without conflicts
+- **Automatic failover**: If an instance crashes, its claimed messages will be reprocessed after the claim timeout
+- **Load distribution**: Processing is naturally distributed across all available instances
+- **Resilient processing**: Handles instance restarts, scaling events, and network issues gracefully
+
+### Implementation Details
+
+The claim-based processing uses two additional fields in the outbox message:
+
+- `ClaimedBy`: The ID of the service instance that has claimed the message
+- `ClaimExpiresAt`: When the claim expires and can be taken by another processor
+
+This mechanism handles common failure scenarios:
+
+- **Instance crash**: Expired claims are automatically released
+- **Process handling failure**: Claims are released and the message status is updated appropriately
+- **Long-running processes**: Claims can be renewed during processing
+- **Stalled instances**: The `ProcessingTtlMinutes` setting handles stuck messages
+
+This approach combines the benefits of the outbox pattern's reliability with the scalability of distributed processing, making it suitable for high-throughput, mission-critical applications.
 
 ## Graceful Shutdown
 

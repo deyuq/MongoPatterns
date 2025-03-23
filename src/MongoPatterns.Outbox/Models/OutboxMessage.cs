@@ -43,4 +43,14 @@ public class OutboxMessage : Entity
     /// Gets or sets the status of the message
     /// </summary>
     public OutboxMessageStatus Status { get; set; }
+
+    /// <summary>
+    /// Gets or sets the ID of the service instance that has claimed this message for processing
+    /// </summary>
+    public string? ClaimedBy { get; set; }
+
+    /// <summary>
+    /// Gets or sets when the claim expires
+    /// </summary>
+    public DateTime? ClaimExpiresAt { get; set; }
 }

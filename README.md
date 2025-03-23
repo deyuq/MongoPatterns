@@ -8,6 +8,7 @@ A comprehensive and flexible MongoDB repository pattern implementation for .NET 
 - **Advanced Querying**: Support for complex MongoDB filter definitions, projections, and aggregations
 - **Transaction Support**: Full MongoDB transaction support through a Unit of Work pattern
 - **Outbox Pattern**: Reliable messaging implementation for distributed systems
+- **Distributed Processing**: Claim-based message processing for multi-instance environments
 - **Flexible Configuration**: Easy setup with options for customization
 - **Background Service Integration**: Built-in support for processing outbox messages
 - **Retry Logic**: Robust error handling with configurable retry mechanisms
@@ -224,10 +225,23 @@ With the following in appsettings.json:
     "BatchSize": 10,
     "AutoStartProcessor": true,
     "ProcessingTtlMinutes": 5,
-    "CollectionPrefix": "service1"
+    "CollectionPrefix": "service1",
+    "ClaimTimeoutMinutes": 2
   }
 }
 ```
+
+### Multi-Instance Processing
+
+The outbox processor supports claim-based message processing for scenarios where multiple instances of the same service need to process messages without race conditions:
+
+1. Each service instance has a unique ID generated at startup
+2. Messages are atomically claimed by a service instance before processing
+3. Claims expire after a configurable timeout (default: 2 minutes)
+4. Expired claims are automatically released for processing by other instances
+5. Message processing status is tracked independently of claims
+
+This approach ensures reliable message processing in distributed environments, with automatic handling of instance failures and graceful recovery.
 
 ### Define Messages
 

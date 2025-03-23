@@ -43,4 +43,19 @@ public class OutboxAdvancedRepository : MongoAdvancedRepository<OutboxMessage>
 
         return database.GetCollection<OutboxMessage>(collectionName);
     }
+
+    /// <summary>
+    ///     Atomically finds a document and updates it in a single operation
+    /// </summary>
+    /// <param name="filter">The filter to find the document</param>
+    /// <param name="update">The update to apply</param>
+    /// <param name="options">The options for the operation</param>
+    /// <returns>The document before or after the update as specified in the options</returns>
+    public async Task<OutboxMessage?> FindOneAndUpdateAsync(
+        FilterDefinition<OutboxMessage> filter,
+        UpdateDefinition<OutboxMessage> update,
+        FindOneAndUpdateOptions<OutboxMessage>? options = null)
+    {
+        return await Collection.FindOneAndUpdateAsync(filter, update, options);
+    }
 }

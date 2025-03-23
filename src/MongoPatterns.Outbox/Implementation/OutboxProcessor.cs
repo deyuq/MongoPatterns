@@ -4,8 +4,10 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using MongoPatterns.Outbox.Models;
+using MongoPatterns.Outbox.Repositories;
 using MongoPatterns.Outbox.Settings;
 using MongoPatterns.Repository.Repositories;
+using System.Linq.Expressions;
 
 namespace MongoPatterns.Outbox.Implementation;
 
@@ -21,6 +23,9 @@ public class OutboxProcessor : BackgroundService
     private readonly JsonSerializerOptions _jsonOptions;
     private Task? _processingTask;
     private readonly SemaphoreSlim _processingLock = new(1, 1);
+
+    // Unique ID for this service instance
+    private readonly string _serviceInstanceId = Guid.NewGuid().ToString();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxProcessor"/> class.
@@ -60,6 +65,8 @@ public class OutboxProcessor : BackgroundService
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = false
         };
+
+        _logger.LogInformation("Outbox processor initialized with instance ID: {ServiceInstanceId}", _serviceInstanceId);
     }
 
     /// <summary>
@@ -114,12 +121,12 @@ public class OutboxProcessor : BackgroundService
                     break;
                 }
             }
+
             // Add delay between MongoDB operations to reduce load
             if (_settings.ProcessingDelayMilliseconds > 0)
             {
                 await Task.Delay(_settings.ProcessingDelayMilliseconds, stoppingToken);
             }
-
         }
 
         _logger.LogInformation("Outbox processor stopping, waiting for in-progress work to complete...");
@@ -152,7 +159,7 @@ public class OutboxProcessor : BackgroundService
     }
 
     /// <summary>
-    /// Resets messages that have been stuck in Processing state for too long
+    /// Resets messages that have been stuck in Processing state for too long or have expired claims
     /// </summary>
     private async Task ResetStuckMessagesAsync(CancellationToken stoppingToken)
     {
@@ -166,17 +173,18 @@ public class OutboxProcessor : BackgroundService
             using var scope = _serviceScopeFactory.CreateScope();
             var repository = scope.ServiceProvider.GetRequiredService<IAdvancedRepository<OutboxMessage>>();
 
-            // Calculate the cutoff time for stuck messages
-            var cutoffTime = DateTime.UtcNow.AddMinutes(-_settings.ProcessingTtlMinutes);
+            // Calculate the cutoff times
+            var processingCutoffTime = DateTime.UtcNow.AddMinutes(-_settings.ProcessingTtlMinutes);
+            var claimCutoffTime = DateTime.UtcNow;
 
-            // Find messages in Processing state that haven't been updated in a while
+            // Find messages that are stuck in Processing state
             var filterBuilder = Builders<OutboxMessage>.Filter;
-            var filter = filterBuilder.And(
+            var processingFilter = filterBuilder.And(
                 filterBuilder.Eq(m => m.Status, OutboxMessageStatus.Processing),
-                filterBuilder.Lt(m => m.ProcessedAt, cutoffTime)
+                filterBuilder.Lt(m => m.ProcessedAt, processingCutoffTime)
             );
 
-            var stuckMessages = await repository.GetWithDefinitionAsync(filter);
+            var stuckMessages = await repository.GetWithDefinitionAsync(processingFilter);
             var messages = stuckMessages.ToList();
 
             if (messages.Any())
@@ -188,10 +196,43 @@ public class OutboxProcessor : BackgroundService
                     // Reset message to Pending state for retry
                     message.Status = OutboxMessageStatus.Pending;
                     message.Error = $"Reset from Processing state after TTL of {_settings.ProcessingTtlMinutes} minutes exceeded";
+                    // Clear claim information
+                    message.ClaimedBy = null;
+                    message.ClaimExpiresAt = null;
 
                     await repository.UpdateAsync(message);
                     _logger.LogInformation("Reset stuck message {MessageId} to Pending state", message.Id);
                 }
+            }
+
+            // Find messages with expired claims
+            var claimFilter = filterBuilder.And(
+                filterBuilder.Ne(m => m.ClaimedBy, null),
+                filterBuilder.Lt(m => m.ClaimExpiresAt, claimCutoffTime),
+                filterBuilder.Eq(m => m.Status, OutboxMessageStatus.Pending)
+            );
+
+            var expiredClaimMessages = await repository.GetWithDefinitionAsync(claimFilter);
+            var expiredMessages = expiredClaimMessages.ToList();
+
+            if (expiredMessages.Any())
+            {
+                _logger.LogWarning("Found {Count} messages with expired claims", expiredMessages.Count);
+
+                // Bulk update to release all expired claims at once
+                var bulkUpdate = Builders<OutboxMessage>.Update
+                    .Set(m => m.ClaimedBy, null)
+                    .Set(m => m.ClaimExpiresAt, null)
+                    .Set(m => m.Error, "Claim expired and released for processing by another instance");
+
+                // Create expression from filter
+                Expression<Func<OutboxMessage, bool>> claimExpression = m =>
+                    m.ClaimedBy != null &&
+                    m.ClaimExpiresAt < claimCutoffTime &&
+                    m.Status == OutboxMessageStatus.Pending;
+
+                await repository.BulkUpdateAsync(claimExpression, bulkUpdate);
+                _logger.LogInformation("Released {Count} expired message claims", expiredMessages.Count);
             }
         }
         catch (Exception ex) when (!(ex is OperationCanceledException))
@@ -214,39 +255,84 @@ public class OutboxProcessor : BackgroundService
         try
         {
             using var scope = _serviceScopeFactory.CreateScope();
-            var repository = scope.ServiceProvider.GetRequiredService<IAdvancedRepository<OutboxMessage>>();
+            var advancedRepository = scope.ServiceProvider.GetRequiredService<OutboxAdvancedRepository>();
+            var repository = scope.ServiceProvider.GetRequiredService<IRepository<OutboxMessage>>();
 
-            // Get pending messages with a limit
-            var filterBuilder = Builders<OutboxMessage>.Filter;
-            var filter = filterBuilder.Eq(m => m.Status, OutboxMessageStatus.Pending);
-            var sort = Builders<OutboxMessage>.Sort.Ascending(m => m.CreatedAt);
+            _logger.LogDebug("Attempting to claim batch of {BatchSize} pending messages", _settings.BatchSize);
 
-            _logger.LogDebug("Getting batch of {BatchSize} pending messages", _settings.BatchSize);
-
-            // Use the new overload with sort and limit
-            var pendingMessages = await repository.GetWithDefinitionAsync(filter, sort, _settings.BatchSize);
-
-            var messages = pendingMessages.ToList();
-            if (!messages.Any())
-            {
-                return;
-            }
-
-            _logger.LogInformation("Processing {Count} pending outbox messages", messages.Count);
-
-            foreach (var message in messages)
+            // Process messages one by one to avoid potential race conditions
+            for (var i = 0; i < _settings.BatchSize; i++)
             {
                 if (stoppingToken.IsCancellationRequested)
+                    break;
+
+                // Try to claim a message
+                var claimedMessage = await ClaimNextPendingMessageAsync(advancedRepository, stoppingToken);
+
+                if (claimedMessage == null)
                 {
+                    // No more messages to process
                     break;
                 }
 
-                await ProcessMessageAsync(message, repository, scope.ServiceProvider, stoppingToken);
+                // Process the claimed message
+                await ProcessMessageAsync(claimedMessage, repository, scope.ServiceProvider, stoppingToken);
             }
         }
         finally
         {
             _processingLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Claims the next pending message using atomic operations
+    /// </summary>
+    private async Task<OutboxMessage?> ClaimNextPendingMessageAsync(
+        OutboxAdvancedRepository repository,
+        CancellationToken stoppingToken)
+    {
+        // Set claim expiration time based on settings
+        var claimExpiresAt = DateTime.UtcNow.AddMinutes(_settings.ClaimTimeoutMinutes);
+
+        // Create filter for unclaimed pending messages
+        var filterBuilder = Builders<OutboxMessage>.Filter;
+        var filter = filterBuilder.And(
+            filterBuilder.Eq(m => m.Status, OutboxMessageStatus.Pending),
+            filterBuilder.Or(
+                filterBuilder.Eq(m => m.ClaimedBy, null),
+                filterBuilder.Lt(m => m.ClaimExpiresAt, DateTime.UtcNow)
+            )
+        );
+
+        // Create update to claim the message
+        var update = Builders<OutboxMessage>.Update
+            .Set(m => m.ClaimedBy, _serviceInstanceId)
+            .Set(m => m.ClaimExpiresAt, claimExpiresAt);
+
+        // Use FindOneAndUpdate to atomically claim the message
+        var options = new FindOneAndUpdateOptions<OutboxMessage>
+        {
+            ReturnDocument = ReturnDocument.After,
+            Sort = Builders<OutboxMessage>.Sort.Ascending(m => m.CreatedAt)
+        };
+
+        try
+        {
+            var claimedMessage = await repository.FindOneAndUpdateAsync(filter, update, options);
+
+            if (claimedMessage != null)
+            {
+                _logger.LogDebug("Successfully claimed message {MessageId} for processing by instance {InstanceId}",
+                    claimedMessage.Id, _serviceInstanceId);
+            }
+
+            return claimedMessage;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error claiming next pending message");
+            return null;
         }
     }
 
@@ -309,6 +395,10 @@ public class OutboxProcessor : BackgroundService
             message.ProcessedAt = DateTime.UtcNow; // Update the timestamp when processing completed
             message.Status = success ? OutboxMessageStatus.Processed : OutboxMessageStatus.Failed;
 
+            // Always clear claim when done processing
+            message.ClaimedBy = null;
+            message.ClaimExpiresAt = null;
+
             // If message processing failed but we haven't reached max retries, set it back to pending
             if (!success && message.ProcessingAttempts < _settings.MaxRetryAttempts)
             {
@@ -356,6 +446,8 @@ public class OutboxProcessor : BackgroundService
                     ? OutboxMessageStatus.Pending
                     : OutboxMessageStatus.Abandoned;
                 message.ProcessedAt = DateTime.UtcNow;
+                message.ClaimedBy = null;
+                message.ClaimExpiresAt = null;
 
                 await repository.UpdateAsync(message);
             }

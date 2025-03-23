@@ -122,7 +122,7 @@ public class TransactionController : ControllerBase
                 };
 
                 // Add message to outbox (will be part of the transaction)
-                await _outboxService.AddMessageAsync(message);
+                await _outboxService.AddMessageToTransactionAsync(message);
 
                 _logger.LogInformation("Todo and message added: {TodoId}", todo.Id);
 

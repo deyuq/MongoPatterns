@@ -54,4 +54,10 @@ public class OutboxSettings
     /// This allows different microservices to use their own outbox collections.
     /// </summary>
     public string? CollectionPrefix { get; set; }
+
+    /// <summary>
+    /// Gets or sets the time in minutes after which a message claim expires and can be claimed by another processor.
+    /// Default is 2 minutes.
+    /// </summary>
+    public int ClaimTimeoutMinutes { get; set; } = 2;
 }
