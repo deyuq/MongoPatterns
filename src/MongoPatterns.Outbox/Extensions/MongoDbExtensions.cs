@@ -47,21 +47,20 @@ public static class MongoDbExtensions
         // Register unit of work and repositories
         services.AddScoped<IUnitOfWork, MongoUnitOfWork>();
 
-        // Register specialized outbox repositories
-        services.AddScoped<IRepository<OutboxMessage>>(provider =>
-        {
-            var mongoSettings = provider.GetRequiredService<MongoDbSettings>();
-            var outboxSettings = provider.GetRequiredService<OutboxSettings>();
-            return new OutboxRepository(mongoSettings, outboxSettings);
-        });
-
-        // Register specialized advanced repository for OutboxMessage
-        services.AddScoped<IAdvancedRepository<OutboxMessage>>(provider =>
+        // Create the OutboxAdvancedRepository instance once per scope
+        services.AddScoped<OutboxAdvancedRepository>(provider =>
         {
             var mongoSettings = provider.GetRequiredService<MongoDbSettings>();
             var outboxSettings = provider.GetRequiredService<OutboxSettings>();
             return new OutboxAdvancedRepository(mongoSettings, outboxSettings);
         });
+
+        // Register the OutboxAdvancedRepository for both repository interfaces
+        services.AddScoped<IRepository<OutboxMessage>>(provider =>
+            provider.GetRequiredService<OutboxAdvancedRepository>());
+
+        services.AddScoped<IAdvancedRepository<OutboxMessage>>(provider =>
+            provider.GetRequiredService<OutboxAdvancedRepository>());
 
         // Create the outbox message collection if it doesn't exist
         services.AddSingleton<IStartupTask>(provider =>
