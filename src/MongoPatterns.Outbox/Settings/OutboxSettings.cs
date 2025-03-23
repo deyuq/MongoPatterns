@@ -41,4 +41,10 @@ public class OutboxSettings
     /// Default is 5 minutes.
     /// </summary>
     public int ProcessingTtlMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// Gets or sets the prefix for the outbox message collection name.
+    /// This allows different microservices to use their own outbox collections.
+    /// </summary>
+    public string? CollectionPrefix { get; set; }
 }

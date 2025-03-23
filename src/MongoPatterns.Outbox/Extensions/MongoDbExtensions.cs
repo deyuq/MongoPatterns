@@ -3,6 +3,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
 using MongoPatterns.Outbox.Models;
+using MongoPatterns.Outbox.Repositories;
+using MongoPatterns.Outbox.Settings;
 using MongoPatterns.Repository.Repositories;
 using MongoPatterns.Repository.Settings;
 using MongoPatterns.Repository.UnitOfWork;
@@ -44,24 +46,29 @@ public static class MongoDbExtensions
 
         // Register unit of work and repositories
         services.AddScoped<IUnitOfWork, MongoUnitOfWork>();
+
+        // Register specialized outbox repositories
         services.AddScoped<IRepository<OutboxMessage>>(provider =>
         {
-            var settings = provider.GetRequiredService<MongoDbSettings>();
-            return new MongoRepository<OutboxMessage>(settings);
+            var mongoSettings = provider.GetRequiredService<MongoDbSettings>();
+            var outboxSettings = provider.GetRequiredService<OutboxSettings>();
+            return new OutboxRepository(mongoSettings, outboxSettings);
         });
 
-        // Register advanced repository for OutboxMessage
+        // Register specialized advanced repository for OutboxMessage
         services.AddScoped<IAdvancedRepository<OutboxMessage>>(provider =>
         {
-            var settings = provider.GetRequiredService<MongoDbSettings>();
-            return new MongoAdvancedRepository<OutboxMessage>(settings);
+            var mongoSettings = provider.GetRequiredService<MongoDbSettings>();
+            var outboxSettings = provider.GetRequiredService<OutboxSettings>();
+            return new OutboxAdvancedRepository(mongoSettings, outboxSettings);
         });
 
         // Create the outbox message collection if it doesn't exist
         services.AddSingleton<IStartupTask>(provider =>
         {
             var database = provider.GetRequiredService<IMongoDatabase>();
-            return new CreateOutboxCollectionTask(database);
+            var outboxSettings = provider.GetRequiredService<OutboxSettings>();
+            return new CreateOutboxCollectionTask(database, outboxSettings);
         });
 
         return services;
@@ -105,26 +112,37 @@ public static class MongoDbExtensions
     private class CreateOutboxCollectionTask : IStartupTask
     {
         private readonly IMongoDatabase _database;
+        private readonly OutboxSettings _outboxSettings;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CreateOutboxCollectionTask"/> class
         /// </summary>
         /// <param name="database">The MongoDB database</param>
-        public CreateOutboxCollectionTask(IMongoDatabase database)
+        /// <param name="outboxSettings">The outbox settings</param>
+        public CreateOutboxCollectionTask(IMongoDatabase database, OutboxSettings outboxSettings)
         {
             _database = database;
+            _outboxSettings = outboxSettings;
         }
 
         /// <inheritdoc/>
         public void Execute()
         {
             var collections = _database.ListCollectionNames().ToList();
-            if (!collections.Contains("OutboxMessage"))
+            string collectionName = typeof(OutboxMessage).Name.ToLower();
+
+            // Apply the collection prefix if configured
+            if (!string.IsNullOrEmpty(_outboxSettings.CollectionPrefix))
             {
-                _database.CreateCollection("OutboxMessage");
+                collectionName = $"{_outboxSettings.CollectionPrefix}_{collectionName}";
+            }
+
+            if (!collections.Contains(collectionName))
+            {
+                _database.CreateCollection(collectionName);
 
                 // Create indexes
-                var collection = _database.GetCollection<OutboxMessage>("OutboxMessage");
+                var collection = _database.GetCollection<OutboxMessage>(collectionName);
                 var statusIndexBuilder = Builders<OutboxMessage>.IndexKeys.Ascending(m => m.Status);
                 var createdAtIndexBuilder = Builders<OutboxMessage>.IndexKeys.Ascending(m => m.CreatedAt);
                 var messageTypeIndexBuilder = Builders<OutboxMessage>.IndexKeys.Ascending(m => m.MessageType);
