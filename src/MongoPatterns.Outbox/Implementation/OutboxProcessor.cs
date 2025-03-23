@@ -114,6 +114,12 @@ public class OutboxProcessor : BackgroundService
                     break;
                 }
             }
+            // Add delay between MongoDB operations to reduce load
+            if (_settings.ProcessingDelayMilliseconds > 0)
+            {
+                await Task.Delay(_settings.ProcessingDelayMilliseconds, stoppingToken);
+            }
+
         }
 
         _logger.LogInformation("Outbox processor stopping, waiting for in-progress work to complete...");

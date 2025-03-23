@@ -218,6 +218,7 @@ With the following in appsettings.json:
 {
   "OutboxSettings": {
     "ProcessingIntervalSeconds": 10,
+    "ProcessingDelayMilliseconds": 1000,
     "MaxRetryAttempts": 3,
     "RetryDelaySeconds": 60,
     "BatchSize": 10,

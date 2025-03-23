@@ -39,6 +39,7 @@ Add outbox settings to your `appsettings.json`:
 {
   "OutboxSettings": {
     "ProcessingIntervalSeconds": 10,
+    "ProcessingDelayMilliseconds": 1000,
     "MaxRetryAttempts": 3,
     "RetryDelaySeconds": 60,
     "BatchSize": 10,
@@ -229,15 +230,16 @@ app.MapGet("/outbox/messages", async (IOutboxRepository outboxRepository) =>
 
 The outbox pattern can be configured using the following settings:
 
-| Setting                     | Description                                                                                     | Default |
-| --------------------------- | ----------------------------------------------------------------------------------------------- | ------- |
-| `ProcessingIntervalSeconds` | How often the processor checks for new messages to process                                      | 10      |
-| `MaxRetryAttempts`          | Maximum number of retries for failed messages                                                   | 3       |
-| `RetryDelaySeconds`         | Delay between retry attempts in seconds                                                         | 60      |
-| `BatchSize`                 | Number of messages to process in each batch                                                     | 10      |
-| `AutoStartProcessor`        | Whether to automatically start the background processor                                         | true    |
-| `ProcessingTtlMinutes`      | Time (in minutes) after which a message stuck in "Processing" status will be reset to "Pending" | 15      |
-| `CollectionPrefix`          | Prefix for outbox collection name to support microservice-specific outbox collections           | null    |
+| Setting                       | Description                                                                                     | Default |
+| ----------------------------- | ----------------------------------------------------------------------------------------------- | ------- |
+| `ProcessingIntervalSeconds`   | How often the processor checks for new messages to process                                      | 10      |
+| `ProcessingDelayMilliseconds` | Delay in milliseconds between MongoDB operations to reduce database load                        | 1000    |
+| `MaxRetryAttempts`            | Maximum number of retries for failed messages                                                   | 3       |
+| `RetryDelaySeconds`           | Delay between retry attempts in seconds                                                         | 60      |
+| `BatchSize`                   | Number of messages to process in each batch                                                     | 10      |
+| `AutoStartProcessor`          | Whether to automatically start the background processor                                         | true    |
+| `ProcessingTtlMinutes`        | Time (in minutes) after which a message stuck in "Processing" status will be reset to "Pending" | 15      |
+| `CollectionPrefix`            | Prefix for outbox collection name to support microservice-specific outbox collections           | null    |
 
 ## Processing TTL Feature
 

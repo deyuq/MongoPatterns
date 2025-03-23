@@ -12,6 +12,13 @@ public class OutboxSettings
     public int ProcessingIntervalSeconds { get; set; } = 10;
 
     /// <summary>
+    /// Gets or sets the delay in milliseconds between each MongoDB request during processing.
+    /// This helps reduce the load on MongoDB by adding a small pause between operations.
+    /// Default is 1000 milliseconds (1 second).
+    /// </summary>
+    public int ProcessingDelayMilliseconds { get; set; } = 1000;
+
+    /// <summary>
     /// Gets or sets the maximum number of retry attempts for failed messages.
     /// Default is 3 attempts.
     /// </summary>
