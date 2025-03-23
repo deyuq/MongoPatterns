@@ -24,25 +24,9 @@ public static class ServiceCollectionExtensions
         string mongoSectionName = "MongoDbSettings",
         string outboxSectionName = "OutboxSettings")
     {
-        services.AddMongoDbOutbox(configuration, mongoSectionName);
-
         var settings = configuration.GetSection(outboxSectionName).Get<OutboxSettings>() ?? new OutboxSettings();
-        return services.AddOutboxPattern(settings);
-    }
-
-    /// <summary>
-    ///     Adds outbox pattern services with the specified settings
-    /// </summary>
-    /// <param name="services">The service collection</param>
-    /// <param name="settings">The outbox settings</param>
-    /// <returns>The service collection</returns>
-    public static IServiceCollection AddOutboxPattern(
-        this IServiceCollection services,
-        OutboxSettings settings)
-    {
-        // Register settings
         services.AddSingleton(settings);
-
+        services.AddMongoDbOutbox(configuration, mongoSectionName);
         // Register outbox service
         services.AddScoped<IOutboxService, OutboxService>();
 
@@ -51,6 +35,7 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
 
     /// <summary>
     ///     Registers a message handler for the outbox pattern

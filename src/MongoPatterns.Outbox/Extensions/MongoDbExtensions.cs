@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
-using MongoPatterns.Outbox.Infrastructure;
 using MongoPatterns.Outbox.Models;
 using MongoPatterns.Outbox.Repositories;
 using MongoPatterns.Outbox.Settings;
@@ -63,7 +62,7 @@ public static class MongoDbExtensions
             provider.GetRequiredService<OutboxAdvancedRepository>());
 
         // Create the outbox message collection if it doesn't exist
-        services.AddSingleton<IStartupTask>(provider =>
+        services.AddSingleton<IOutboxStartupTask>(provider =>
         {
             var database = provider.GetRequiredService<IMongoDatabase>();
             var outboxSettings = provider.GetRequiredService<OutboxSettings>();

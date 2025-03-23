@@ -1,7 +1,6 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
-using MongoPatterns.Repository.UnitOfWork;
 using MongoPatterns.Outbox;
+using MongoPatterns.Repository.UnitOfWork;
 using MongoPatterns.Sample.Messages;
 using MongoPatterns.Sample.Models;
 
@@ -67,9 +66,7 @@ public class TransactionController : ControllerBase
                 };
 
                 // Add message to outbox (will be part of the transaction)
-                await _outboxService.AddMessageAsync(
-                    JsonSerializer.Serialize(message),
-                    nameof(TodoCreatedMessage));
+                await _outboxService.AddMessageAsync(message);
 
                 _logger.LogInformation("Todo and message added: {TodoId}", todo.Id);
             }
@@ -125,9 +122,7 @@ public class TransactionController : ControllerBase
                 };
 
                 // Add message to outbox (will be part of the transaction)
-                await _outboxService.AddMessageAsync(
-                    JsonSerializer.Serialize(message),
-                    nameof(TodoCreatedMessage));
+                await _outboxService.AddMessageAsync(message);
 
                 _logger.LogInformation("Todo and message added: {TodoId}", todo.Id);
 

@@ -7,14 +7,14 @@ using MongoPatterns.Repository.Settings;
 namespace MongoPatterns.Outbox.Repositories;
 
 /// <summary>
-/// Specialized advanced repository for outbox messages that supports microservice-specific collection prefixes
+///     Specialized advanced repository for outbox messages that supports microservice-specific collection prefixes
 /// </summary>
 public class OutboxAdvancedRepository : MongoAdvancedRepository<OutboxMessage>
 {
     private readonly OutboxSettings _outboxSettings;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="OutboxAdvancedRepository"/> class.
+    ///     Initializes a new instance of the <see cref="OutboxAdvancedRepository" /> class.
     /// </summary>
     /// <param name="mongoSettings">MongoDB connection settings</param>
     /// <param name="outboxSettings">Outbox pattern settings</param>
@@ -29,19 +29,17 @@ public class OutboxAdvancedRepository : MongoAdvancedRepository<OutboxMessage>
     }
 
     /// <summary>
-    /// Gets the MongoDB collection for outbox messages with proper prefix support
+    ///     Gets the MongoDB collection for outbox messages with proper prefix support
     /// </summary>
     /// <param name="database">The MongoDB database</param>
     /// <returns>The MongoDB collection for outbox messages</returns>
     protected override IMongoCollection<OutboxMessage> GetCollection(IMongoDatabase database)
     {
-        string collectionName = typeof(OutboxMessage).Name.ToLower();
+        var collectionName = nameof(OutboxMessage).ToLower();
 
         // Apply the outbox-specific prefix if configured
         if (!string.IsNullOrEmpty(_outboxSettings.CollectionPrefix))
-        {
             collectionName = $"{_outboxSettings.CollectionPrefix}_{collectionName}";
-        }
 
         return database.GetCollection<OutboxMessage>(collectionName);
     }

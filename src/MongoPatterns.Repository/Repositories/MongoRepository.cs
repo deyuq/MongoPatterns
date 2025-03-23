@@ -11,8 +11,14 @@ namespace MongoPatterns.Repository.Repositories;
 /// <typeparam name="TEntity">The type of entity this repository works with</typeparam>
 public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEntity
 {
-    protected readonly IMongoCollection<TEntity> Collection;
+    private readonly MongoDbSettings _settings;
+    private readonly Lazy<IMongoCollection<TEntity>> _lazyCollection;
     protected readonly IClientSessionHandle? Session;
+
+    /// <summary>
+    /// Gets the MongoDB collection for the repository with thread-safe lazy initialization
+    /// </summary>
+    protected IMongoCollection<TEntity> Collection => _lazyCollection.Value;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MongoPatterns{TEntity}"/> class.
@@ -21,12 +27,21 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     /// <param name="session">Optional session for transaction support</param>
     public MongoRepository(MongoDbSettings settings, IClientSessionHandle? session = null)
     {
-        var client = new MongoClient(settings.ConnectionString);
-        var database = client.GetDatabase(settings.DatabaseName);
-        Collection = GetCollection(database);
+        _settings = settings;
         Session = session;
+        _lazyCollection = new Lazy<IMongoCollection<TEntity>>(() =>
+        {
+            var client = new MongoClient(_settings.ConnectionString);
+            var database = client.GetDatabase(_settings.DatabaseName);
+            return GetCollection(database);
+        }, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
+    /// <summary>
+    /// Gets the MongoDB collection for the entity type
+    /// </summary>
+    /// <param name="database">The MongoDB database</param>
+    /// <returns>The MongoDB collection for the entity type</returns>
     protected virtual IMongoCollection<TEntity> GetCollection(IMongoDatabase database)
     {
         return database.GetCollection<TEntity>(typeof(TEntity).Name.ToLower());
