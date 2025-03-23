@@ -15,6 +15,16 @@ echo -e "${BLUE}===== Starting MongoDB Replica Set and Application Services ====
 echo -e "${YELLOW}Stopping any existing containers and cleaning volumes...${NC}"
 docker-compose down -v
 
+# Additional cleanup to ensure no conflicting containers exist
+echo -e "${YELLOW}Performing additional cleanup of any leftover containers...${NC}"
+for container in mongo1 mongo2 mongo3 mongo-init sample-api; do
+  if [ "$(docker ps -a -q -f name=^/${container}$)" ]; then
+    echo -e "Stopping and removing container: ${container}"
+    docker stop ${container} 2>/dev/null || true
+    docker rm ${container} 2>/dev/null || true
+  fi
+done
+
 # Start fresh
 echo -e "${GREEN}Starting MongoDB replica set nodes...${NC}"
 docker-compose build

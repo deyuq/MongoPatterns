@@ -23,8 +23,13 @@ public class MongoRepository<TEntity> : IRepository<TEntity> where TEntity : IEn
     {
         var client = new MongoClient(settings.ConnectionString);
         var database = client.GetDatabase(settings.DatabaseName);
-        Collection = database.GetCollection<TEntity>(typeof(TEntity).Name.ToLower());
+        Collection = GetCollection(database);
         Session = session;
+    }
+
+    protected virtual IMongoCollection<TEntity> GetCollection(IMongoDatabase database)
+    {
+        return database.GetCollection<TEntity>(typeof(TEntity).Name.ToLower());
     }
 
     /// <summary>

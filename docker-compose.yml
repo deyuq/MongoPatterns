@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongo1:
     image: mongo:latest
@@ -91,7 +89,7 @@ services:
   sample-api:
     build:
       context: .
-      dockerfile: samples/MongoRepository.Sample/Dockerfile
+      dockerfile: src/MongoPatterns.Sample/Dockerfile
     container_name: sample-api
     restart: always
     ports:
