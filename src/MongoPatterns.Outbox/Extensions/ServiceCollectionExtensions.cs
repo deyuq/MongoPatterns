@@ -1,4 +1,3 @@
-using System;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MongoPatterns.Outbox.Implementation;
@@ -7,39 +6,12 @@ using MongoPatterns.Outbox.Settings;
 namespace MongoPatterns.Outbox.Extensions;
 
 /// <summary>
-/// Extension methods for registering outbox services
+///     Extension methods for registering outbox services
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds outbox pattern services with default settings.
-    /// This method assumes MongoDB has already been configured elsewhere.
-    /// </summary>
-    /// <param name="services">The service collection</param>
-    /// <returns>The service collection</returns>
-    public static IServiceCollection AddOutboxPattern(this IServiceCollection services)
-    {
-        return services.AddOutboxPattern(new OutboxSettings());
-    }
-
-    /// <summary>
-    /// Adds outbox pattern services with default settings
-    /// </summary>
-    /// <param name="services">The service collection</param>
-    /// <param name="connectionString">MongoDB connection string</param>
-    /// <param name="databaseName">MongoDB database name</param>
-    /// <returns>The service collection</returns>
-    public static IServiceCollection AddOutboxPattern(
-        this IServiceCollection services,
-        string connectionString,
-        string databaseName)
-    {
-        services.AddMongoDbOutbox(connectionString, databaseName);
-        return services.AddOutboxPattern(new OutboxSettings());
-    }
-
-    /// <summary>
-    /// Adds outbox pattern services with settings from configuration
+    ///     Adds outbox pattern services with settings from configuration
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configuration">The configuration</param>
@@ -59,7 +31,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds outbox pattern services with the specified settings
+    ///     Adds outbox pattern services with the specified settings
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="settings">The outbox settings</param>
@@ -75,16 +47,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IOutboxService, OutboxService>();
 
         // Register outbox processor (background service)
-        if (settings.AutoStartProcessor)
-        {
-            services.AddHostedService<OutboxProcessor>();
-        }
+        if (settings.AutoStartProcessor) services.AddHostedService<OutboxProcessor>();
 
         return services;
     }
 
     /// <summary>
-    /// Registers a message handler for the outbox pattern
+    ///     Registers a message handler for the outbox pattern
     /// </summary>
     /// <typeparam name="THandler">The type of the message handler</typeparam>
     /// <typeparam name="TMessage">The type of message this handler can process</typeparam>

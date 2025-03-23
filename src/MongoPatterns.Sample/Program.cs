@@ -49,6 +49,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseOutboxPattern();
+
 app.UseHttpsRedirection();
 
 app.MapHealthChecks("/healthz");
