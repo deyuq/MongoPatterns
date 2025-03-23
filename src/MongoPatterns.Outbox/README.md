@@ -43,7 +43,8 @@ Add outbox settings to your `appsettings.json`:
     "RetryDelaySeconds": 60,
     "BatchSize": 10,
     "AutoStartProcessor": true,
-    "ProcessingTtlMinutes": 15
+    "ProcessingTtlMinutes": 15,
+    "CollectionPrefix": "yourservice"
   }
 }
 ```
@@ -236,6 +237,7 @@ The outbox pattern can be configured using the following settings:
 | `BatchSize`                 | Number of messages to process in each batch                                                     | 10      |
 | `AutoStartProcessor`        | Whether to automatically start the background processor                                         | true    |
 | `ProcessingTtlMinutes`      | Time (in minutes) after which a message stuck in "Processing" status will be reset to "Pending" | 15      |
+| `CollectionPrefix`          | Prefix for outbox collection name to support microservice-specific outbox collections           | null    |
 
 ## Processing TTL Feature
 
@@ -248,6 +250,19 @@ The `ProcessingTtlMinutes` setting provides an automatic recovery mechanism for 
 By setting `ProcessingTtlMinutes`, any message that has been in the "Processing" state for longer than the specified time will automatically be reset to "Pending" status when the processor runs. This ensures that no message gets stuck in processing indefinitely, improving the reliability of your system.
 
 For example, if `ProcessingTtlMinutes` is set to 15, any message that has been "Processing" for more than 15 minutes will be reset and reprocessed.
+
+## Microservice-Specific Collections
+
+The `CollectionPrefix` setting allows you to configure a unique prefix for outbox collections when using the library across multiple microservices. This ensures each service uses its own isolated outbox collection while maintaining the same implementation pattern.
+
+By setting a unique `CollectionPrefix` for each service, you can:
+
+- Keep outbox messages from different services isolated
+- Deploy multiple services accessing the same MongoDB instance
+- Avoid conflicts between different service's messages
+- Simplify monitoring and debugging by service
+
+For example, if your CollectionPrefix is set to "orderservice", the outbox collection will be named "orderservice_outboxmessage" instead of just "outboxmessage".
 
 ## Graceful Shutdown
 
