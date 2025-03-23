@@ -1,4 +1,4 @@
-# MongoRepository
+# MongoPatterns
 
 A comprehensive and flexible MongoDB repository pattern implementation for .NET projects with transaction support, advanced querying capabilities, and outbox pattern for reliable messaging.
 
@@ -17,7 +17,8 @@ A comprehensive and flexible MongoDB repository pattern implementation for .NET 
 ### Installation
 
 ```bash
-dotnet add package MongoRepository.Core
+dotnet add package MongoPatterns.Repository
+dotnet add package MongoPatterns.Outbox
 ```
 
 ### Basic Usage
@@ -26,16 +27,6 @@ dotnet add package MongoRepository.Core
 
 ```csharp
 // In Program.cs or Startup.cs
-builder.Services.AddMongoRepository(options =>
-{
-    options.ConnectionString = "mongodb://localhost:27017";
-    options.DatabaseName = "YourDatabaseName";
-});
-```
-
-Or using configuration:
-
-```csharp
 builder.Services.AddMongoRepository(builder.Configuration);
 ```
 
@@ -53,53 +44,49 @@ With the following in appsettings.json:
 #### Define Your Models
 
 ```csharp
-public class Product
+public class TodoItem : Entity
 {
-    [BsonId]
-    [BsonRepresentation(BsonType.ObjectId)]
-    public string Id { get; set; }
-    
-    public string Name { get; set; }
-    
-    public decimal Price { get; set; }
-    
-    public DateTime CreatedAt { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsCompleted { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? CompletedAt { get; set; }
 }
 ```
 
 #### Basic Repository Operations
 
 ```csharp
-public class ProductService
+public class TodoService
 {
-    private readonly IRepository<Product> _repository;
+    private readonly IRepository<TodoItem> _repository;
     
-    public ProductService(IRepository<Product> repository)
+    public TodoService(IRepository<TodoItem> repository)
     {
         _repository = repository;
     }
     
-    public async Task<IEnumerable<Product>> GetAllProductsAsync()
+    public async Task<IEnumerable<TodoItem>> GetAllTodosAsync()
     {
         return await _repository.GetAllAsync();
     }
     
-    public async Task<Product> GetProductByIdAsync(string id)
+    public async Task<TodoItem> GetTodoByIdAsync(string id)
     {
         return await _repository.GetByIdAsync(id);
     }
     
-    public async Task CreateProductAsync(Product product)
+    public async Task CreateTodoAsync(TodoItem todo)
     {
-        await _repository.AddAsync(product);
+        await _repository.AddAsync(todo);
     }
     
-    public async Task UpdateProductAsync(Product product)
+    public async Task UpdateTodoAsync(TodoItem todo)
     {
-        await _repository.UpdateAsync(product);
+        await _repository.UpdateAsync(todo);
     }
     
-    public async Task DeleteProductAsync(string id)
+    public async Task DeleteTodoAsync(string id)
     {
         await _repository.DeleteAsync(id);
     }
@@ -111,79 +98,102 @@ public class ProductService
 ### Using MongoDB Filter Definitions
 
 ```csharp
-public async Task<IEnumerable<Product>> GetExpensiveProductsAsync(decimal minPrice)
+public async Task<IEnumerable<TodoItem>> GetCompletedTodosAsync()
 {
-    var filter = Builders<Product>.Filter.Gte(p => p.Price, minPrice);
-    return await _repository.GetWithDefinitionAsync(filter);
+    var filter = Builders<TodoItem>.Filter.Eq(t => t.IsCompleted, true);
+    return await _repository.GetAsync(filter);
 }
 ```
 
-### Paging and Sorting
+### Filtering and Simple Queries
 
 ```csharp
-public async Task<IEnumerable<Product>> GetPagedProductsAsync(int page, int pageSize)
+public async Task<IEnumerable<TodoItem>> GetActiveTodosAsync()
 {
-    return await _repository.GetPagedAsync(
-        p => true,
-        p => p.CreatedAt,
-        false,
-        page,
-        pageSize);
+    return await _repository.GetAsync(t => !t.IsCompleted);
 }
 ```
 
-### Using Projections
+### Using the Advanced Repository
 
 ```csharp
-public async Task<IEnumerable<ProductSummary>> GetProductSummariesAsync()
+public class AdvancedTodoService
 {
-    var projection = Builders<Product>.Projection
-        .Include(p => p.Id)
-        .Include(p => p.Name)
-        .Include(p => p.Price);
-        
-    return await _repository.GetWithProjectionAsync<ProductSummary>(
-        Builders<Product>.Filter.Empty,
-        projection);
+    private readonly IAdvancedRepository<TodoItem> _repository;
+    
+    public AdvancedTodoService(IAdvancedRepository<TodoItem> repository)
+    {
+        _repository = repository;
+    }
+    
+    public async Task<IEnumerable<TodoItem>> GetRecentTodosAsync(int page, int pageSize)
+    {
+        return await _repository.GetPagedAsync(
+            t => true,
+            t => t.CreatedAt,
+            false,
+            page,
+            pageSize);
+    }
+    
+    public async Task MarkAllAsCompletedAsync()
+    {
+        var filter = Builders<TodoItem>.Filter.Eq(t => t.IsCompleted, false);
+        var update = Builders<TodoItem>.Update
+            .Set(t => t.IsCompleted, true)
+            .Set(t => t.CompletedAt, DateTime.UtcNow);
+            
+        await _repository.BulkUpdateAsync(filter, update);
+    }
 }
 ```
 
 ### Transactions with Unit of Work
 
 ```csharp
-public async Task TransferFundsAsync(string fromAccountId, string toAccountId, decimal amount)
+public class TransactionalTodoService
 {
-    await _unitOfWork.BeginTransactionAsync();
+    private readonly IUnitOfWork _unitOfWork;
     
-    try
+    public TransactionalTodoService(IUnitOfWork unitOfWork)
     {
-        var accountRepo = _unitOfWork.GetRepository<Account>();
-        
-        var fromAccount = await accountRepo.GetByIdAsync(fromAccountId);
-        var toAccount = await accountRepo.GetByIdAsync(toAccountId);
-        
-        fromAccount.Balance -= amount;
-        toAccount.Balance += amount;
-        
-        await accountRepo.UpdateAsync(fromAccount);
-        await accountRepo.UpdateAsync(toAccount);
-        
-        // Record the transaction
-        var transactionRepo = _unitOfWork.GetRepository<Transaction>();
-        await transactionRepo.AddAsync(new Transaction
-        {
-            FromAccountId = fromAccountId,
-            ToAccountId = toAccountId,
-            Amount = amount,
-            Timestamp = DateTime.UtcNow
-        });
-        
-        await _unitOfWork.CommitTransactionAsync();
+        _unitOfWork = unitOfWork;
     }
-    catch
+    
+    public async Task MoveAllItemsAsync(string sourceListId, string targetListId)
     {
-        await _unitOfWork.AbortTransactionAsync();
-        throw;
+        await _unitOfWork.BeginTransactionAsync();
+        
+        try
+        {
+            var todoRepo = _unitOfWork.GetRepository<TodoItem>();
+            
+            // Get items from source list
+            var items = await todoRepo.GetAsync(t => t.ListId == sourceListId);
+            
+            // Update each item's list ID
+            foreach (var item in items)
+            {
+                item.ListId = targetListId;
+                await todoRepo.UpdateAsync(item);
+            }
+            
+            // Add an audit record
+            var auditRepo = _unitOfWork.GetRepository<AuditRecord>();
+            await auditRepo.AddAsync(new AuditRecord
+            {
+                Action = "MoveTodoItems",
+                Description = $"Moved items from list {sourceListId} to {targetListId}",
+                Timestamp = DateTime.UtcNow
+            });
+            
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch
+        {
+            await _unitOfWork.AbortTransactionAsync();
+            throw;
+        }
     }
 }
 ```
@@ -199,7 +209,7 @@ The outbox pattern ensures reliable message delivery between services by storing
 builder.Services.AddOutboxPattern(builder.Configuration);
 
 // Register message handlers
-builder.Services.AddOutboxMessageHandler<OrderCreatedHandler, OrderCreatedMessage>();
+builder.Services.AddOutboxMessageHandler<TodoCreatedHandler, TodoCreatedMessage>();
 ```
 
 With the following in appsettings.json:
@@ -219,10 +229,10 @@ With the following in appsettings.json:
 ### Define Messages
 
 ```csharp
-public class OrderCreatedMessage
+public class TodoCreatedMessage
 {
-    public string OrderId { get; set; }
-    public decimal TotalAmount { get; set; }
+    public string Id { get; set; }
+    public string Title { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 ```
@@ -230,21 +240,18 @@ public class OrderCreatedMessage
 ### Implement Message Handlers
 
 ```csharp
-public class OrderCreatedHandler : IMessageHandler<OrderCreatedMessage>
+public class TodoCreatedHandler : IMessageHandler<TodoCreatedMessage>
 {
-    private readonly ILogger<OrderCreatedHandler> _logger;
+    private readonly ILogger<TodoCreatedHandler> _logger;
     
-    public OrderCreatedHandler(ILogger<OrderCreatedHandler> logger)
+    public TodoCreatedHandler(ILogger<TodoCreatedHandler> logger)
     {
         _logger = logger;
     }
     
-    public string MessageType => typeof(OrderCreatedMessage).FullName;
-    
-    public Task HandleAsync(OrderCreatedMessage message)
+    public async Task HandleAsync(TodoCreatedMessage message)
     {
-        _logger.LogInformation("Processing order {OrderId} for {TotalAmount}", 
-            message.OrderId, message.TotalAmount);
+        _logger.LogInformation("Processing new todo item: {Title}", message.Title);
             
         // Process the message (e.g., send email, update analytics, etc.)
         
@@ -256,74 +263,50 @@ public class OrderCreatedHandler : IMessageHandler<OrderCreatedMessage>
 ### Using the Outbox in Your Code
 
 ```csharp
-public async Task CreateOrderAsync(Order order, List<OrderItem> items)
+public class TodoOutboxService
 {
-    await _unitOfWork.BeginTransactionAsync();
+    private readonly IRepository<TodoItem> _repository;
+    private readonly IOutboxService _outboxService;
+    private readonly IUnitOfWork _unitOfWork;
     
-    try
+    public TodoOutboxService(
+        IRepository<TodoItem> repository,
+        IOutboxService outboxService,
+        IUnitOfWork unitOfWork)
     {
-        var orderRepo = _unitOfWork.GetRepository<Order>();
-        var itemRepo = _unitOfWork.GetRepository<OrderItem>();
+        _repository = repository;
+        _outboxService = outboxService;
+        _unitOfWork = unitOfWork;
+    }
+    
+    public async Task CreateTodoWithNotificationAsync(TodoItem todo)
+    {
+        await _unitOfWork.BeginTransactionAsync();
         
-        await orderRepo.AddAsync(order);
-        
-        foreach (var item in items)
+        try
         {
-            item.OrderId = order.Id;
-            await itemRepo.AddAsync(item);
+            // Add the todo item
+            var todoRepo = _unitOfWork.GetRepository<TodoItem>();
+            await todoRepo.AddAsync(todo);
+            
+            // Create and add the message to the outbox within the same transaction
+            var message = new TodoCreatedMessage
+            {
+                Id = todo.Id,
+                Title = todo.Title,
+                CreatedAt = todo.CreatedAt
+            };
+            
+            await _outboxService.AddMessageToTransactionAsync(message);
+            
+            await _unitOfWork.CommitTransactionAsync();
         }
-        
-        // Add message to outbox as part of the transaction
-        var message = new OrderCreatedMessage
+        catch
         {
-            OrderId = order.Id,
-            TotalAmount = order.TotalAmount,
-            CreatedAt = DateTime.UtcNow
-        };
-        
-        await _outboxService.AddMessageToTransactionAsync(message);
-        
-        await _unitOfWork.CommitTransactionAsync();
+            await _unitOfWork.AbortTransactionAsync();
+            throw;
+        }
     }
-    catch
-    {
-        await _unitOfWork.AbortTransactionAsync();
-        throw;
-    }
-}
-```
-
-## Monitoring Outbox Messages
-
-```csharp
-public async Task<OutboxStatus> GetOutboxStatusAsync()
-{
-    var repository = _serviceProvider.GetRequiredService<IRepository<OutboxMessage>>();
-    
-    var pendingCount = await repository.CountAsync(
-        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Pending));
-        
-    var processingCount = await repository.CountAsync(
-        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Processing));
-        
-    var processedCount = await repository.CountAsync(
-        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Processed));
-        
-    var failedCount = await repository.CountAsync(
-        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Failed));
-        
-    var abandonedCount = await repository.CountAsync(
-        Builders<OutboxMessage>.Filter.Eq(m => m.Status, MessageStatus.Abandoned));
-    
-    return new OutboxStatus
-    {
-        Pending = pendingCount,
-        Processing = processingCount,
-        Processed = processedCount,
-        Failed = failedCount,
-        Abandoned = abandonedCount,
-        Total = pendingCount + processingCount + processedCount + failedCount + abandonedCount
-    };
 }
 ```
 
