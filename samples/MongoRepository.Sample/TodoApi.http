@@ -1,5 +1,5 @@
 @hostname = localhost
-@port = 5276
+@port = 8080
 @host = {{hostname}}:{{port}}
 @contentType = application/json
 @todoId = 67dd4732380585b9b6eb6b95
