@@ -44,7 +44,6 @@ Add outbox settings to your `appsettings.json`:
     "MaxRetryAttempts": 3,
     "RetryDelaySeconds": 60,
     "BatchSize": 10,
-    "AutoStartProcessor": true,
     "ProcessingTtlMinutes": 15,
     "CollectionPrefix": "yourservice",
     "ClaimTimeoutMinutes": 2
@@ -239,7 +238,6 @@ The outbox pattern can be configured using the following settings:
 | `MaxRetryAttempts`            | Maximum number of retries for failed messages                                                   | 3       |
 | `RetryDelaySeconds`           | Delay between retry attempts in seconds                                                         | 60      |
 | `BatchSize`                   | Number of messages to process in each batch                                                     | 10      |
-| `AutoStartProcessor`          | Whether to automatically start the background processor                                         | true    |
 | `ProcessingTtlMinutes`        | Time (in minutes) after which a message stuck in "Processing" status will be reset to "Pending" | 15      |
 | `CollectionPrefix`            | Prefix for outbox collection name to support microservice-specific outbox collections           | null    |
 | `ClaimTimeoutMinutes`         | Time (in minutes) after which a message claim expires                                           | 2       |
@@ -337,70 +335,6 @@ The processor registers with the .NET host's `IHostApplicationLifetime` to respo
 2. **Appropriate TTL Settings**: Configure `ProcessingTtlMinutes` based on your expected message processing time.
 3. **Regular Monitoring**: Set up monitoring for abandoned messages and failed messages that have reached their retry limit.
 4. **Transaction Usage**: Use transactions when updating multiple collections to ensure consistency.
-
-## Advanced Usage
-
-### Custom Message Serialization
-
-You can customize how messages are serialized by implementing the `IMessageSerializer` interface:
-
-```csharp
-public class CustomMessageSerializer : IMessageSerializer
-{
-    public string Serialize(object message)
-    {
-        // Custom serialization logic
-        return JsonConvert.SerializeObject(message, new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.All,
-            Formatting = Formatting.Indented
-        });
-    }
-
-    public object Deserialize(string serializedMessage, Type messageType)
-    {
-        // Custom deserialization logic
-        return JsonConvert.DeserializeObject(serializedMessage, messageType, new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.All
-        });
-    }
-}
-
-// Register your custom serializer
-services.AddSingleton<IMessageSerializer, CustomMessageSerializer>();
-```
-
-### Manual Outbox Processing
-
-If you need more control over the processing, you can disable automatic processing and handle it manually:
-
-```json
-{
-  "OutboxSettings": {
-    "AutoStartProcessor": false
-  }
-}
-```
-
-Then manually process messages when needed:
-
-```csharp
-public class ManualProcessingService
-{
-    private readonly IOutboxProcessor _outboxProcessor;
-    
-    public ManualProcessingService(IOutboxProcessor outboxProcessor)
-    {
-        _outboxProcessor = outboxProcessor;
-    }
-    
-    public async Task ProcessPendingMessagesAsync(CancellationToken cancellationToken = default)
-    {
-        await _outboxProcessor.ProcessMessagesAsync(cancellationToken);
-    }
-}
-```
 
 ## License
 

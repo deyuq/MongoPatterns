@@ -30,8 +30,7 @@ public static class ServiceCollectionExtensions
         // Register outbox service
         services.AddScoped<IOutboxService, OutboxService>();
 
-        // Register outbox processor (background service)
-        if (settings.AutoStartProcessor) services.AddHostedService<OutboxProcessor>();
+        services.AddHostedService<OutboxProcessor>();
 
         return services;
     }

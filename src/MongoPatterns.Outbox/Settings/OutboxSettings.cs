@@ -37,12 +37,6 @@ public class OutboxSettings
     public int BatchSize { get; set; } = 10;
 
     /// <summary>
-    /// Gets or sets whether the processor should automatically start on application startup.
-    /// Default is true.
-    /// </summary>
-    public bool AutoStartProcessor { get; set; } = true;
-
-    /// <summary>
     /// Gets or sets the time in minutes after which a message in 'Processing' state 
     /// will be considered stuck and reset to 'Pending'.
     /// Default is 5 minutes.
