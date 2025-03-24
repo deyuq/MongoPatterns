@@ -1,4 +1,4 @@
-# MongoRepository.Core
+# MongoPatterns.Repository
 
 A lightweight, flexible MongoDB repository implementation for .NET applications. This package provides a clean, strongly-typed abstraction over MongoDB operations with support for the repository pattern, unit of work, and CRUD operations.
 
@@ -17,7 +17,7 @@ A lightweight, flexible MongoDB repository implementation for .NET applications.
 ### 1. Install the Package
 
 ```bash
-dotnet add package MongoRepository.Core
+dotnet add package MongoPatterns.Repository
 ```
 
 ### 2. Configure MongoDB Settings
@@ -49,9 +49,9 @@ Create entity classes that inherit from `Entity` or implement `IEntity`:
 ```csharp
 public class Product : Entity
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public decimal Price { get; set; }
-    public string Description { get; set; }
+    public string Description { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
     public bool IsAvailable { get; set; }
 }
@@ -99,6 +99,16 @@ public class ProductService
     public async Task DeleteProductAsync(string id)
     {
         await _repository.DeleteAsync(id);
+    }
+    
+    public async Task<long> CountProductsAsync()
+    {
+        return await _repository.CountAsync();
+    }
+    
+    public async Task<bool> ProductExistsAsync(string name)
+    {
+        return await _repository.ExistsAsync(p => p.Name == name);
     }
 }
 ```
