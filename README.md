@@ -223,7 +223,6 @@ With the following in appsettings.json:
     "MaxRetryAttempts": 3,
     "RetryDelaySeconds": 60,
     "BatchSize": 10,
-    "AutoStartProcessor": true,
     "ProcessingTtlMinutes": 5,
     "CollectionPrefix": "service1",
     "ClaimTimeoutMinutes": 2
